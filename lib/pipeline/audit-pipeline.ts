@@ -10,6 +10,7 @@ import {
 import { classifyBusiness } from '@/lib/ai/classify';
 import { synthesizeAudit } from '@/lib/ai/synthesize';
 import { getBenchmark, formatBenchmarkForPrompt } from '@/lib/benchmarks/industry-data';
+import { computeScores } from '@/lib/scoring/score-engine';
 import type { SnapshotIntake } from '@/types/audit';
 
 async function setStatus(auditId: string, status: string, extra?: Record<string, unknown>) {
@@ -90,6 +91,17 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       trafficSummary,
       benchmarkContext,
     });
+
+    // Override Claude's scores with the deterministic score engine for consistency
+    const deterministicScores = computeScores({
+      classification,
+      benchmark,
+      techSignalsDetected: techSignals,
+      manualProcessSignals,
+      employeeRange: intake.employeeRange,
+      hasTrafficData: !!traffic,
+    });
+    reportData.scores = deterministicScores;
 
     // Store results
     await db.from('audits').update({

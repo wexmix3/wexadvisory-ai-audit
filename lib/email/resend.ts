@@ -1,4 +1,6 @@
 import { Resend } from 'resend';
+import type { AuditReportData } from '@/types/audit';
+import { generateSnapshotPDF } from '@/lib/pdf/snapshot-pdf';
 
 let client: Resend | null = null;
 
@@ -15,19 +17,32 @@ export async function sendSnapshotEmail(params: {
   toEmail: string;
   toName: string;
   companyName: string;
+  companyUrl: string;
   auditId: string;
   totalAnnualSavings: number;
-  pdfUrl?: string;
   resultsUrl: string;
+  reportData: AuditReportData;
 }) {
-  const { toEmail, toName, companyName, totalAnnualSavings, resultsUrl } = params;
-  const firstName = toName.split(' ')[0];
+  const { toEmail, toName, companyName, companyUrl, totalAnnualSavings, resultsUrl, reportData } = params;
+  const firstName = toName.split(' ')[0] || toName;
   const savings = `$${(totalAnnualSavings / 1000).toFixed(0)}K`;
+
+  let pdfBuffer: Buffer | undefined;
+  try {
+    pdfBuffer = await generateSnapshotPDF(companyName, companyUrl, reportData);
+  } catch (err) {
+    console.error('[email] PDF generation failed — sending without attachment:', err);
+  }
+
+  const filename = `AI-Audit-${companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
 
   await getClient().emails.send({
     from: 'Wex Advisory <audit@wexadvisory.com>',
     to: toEmail,
-    subject: `Your AI Opportunity Snapshot is ready — ${savings}/year in potential savings`,
+    subject: `Your AI Opportunity Snapshot for ${companyName} is ready`,
+    attachments: pdfBuffer
+      ? [{ filename, content: pdfBuffer.toString('base64') }]
+      : undefined,
     html: `
 <!DOCTYPE html>
 <html>
@@ -70,7 +85,7 @@ export async function sendSnapshotEmail(params: {
         <li>ROI calculator with payback periods</li>
       </ul>
 
-      <a href="https://calendly.com/maxwexley/strategy-call" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book a Free Strategy Call →</a>
+      <a href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book a Free Strategy Call →</a>
 
       <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
         <p style="color: #6b7280; font-size: 14px; margin: 0;">
@@ -105,7 +120,7 @@ export async function sendAdminNotification(params: {
   await getClient().emails.send({
     from: 'Wex AI Audit <audit@wexadvisory.com>',
     to: 'maxwexley@wexadvisory.com',
-    subject: `🎯 New Lead: ${companyName} — $${(totalAnnualSavings / 1000).toFixed(0)}K opportunity`,
+    subject: `New Lead: ${companyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>

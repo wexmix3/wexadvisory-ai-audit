@@ -51,6 +51,7 @@ Classify this business.`.trim();
   const message = await getClient().messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
+    temperature: 0,
     system: CLASSIFY_SYSTEM,
     messages: [{ role: 'user', content: userMessage }],
   });

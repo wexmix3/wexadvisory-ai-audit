@@ -158,10 +158,10 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(overall, 45),
       verdict:
         overall >= 65
-          ? `Ahead of most ${benchmark.name} businesses in AI maturity — ready to move from foundation to scale.`
+          ? `Ahead of most peers in ${benchmark.name} — ready to move from AI foundation to scale.`
           : overall >= 40
-          ? `Roughly average for ${benchmark.name} businesses — clear opportunities to pull ahead of competitors through targeted AI investments.`
-          : `Below average for ${benchmark.name} businesses in AI maturity — significant upside available with systematic investment.`,
+          ? `Roughly average for ${benchmark.name} — clear opportunities to pull ahead of competitors through targeted AI investments.`
+          : `Below average for ${benchmark.name} — significant upside available with systematic investment.`,
       topFactors: [
         `AI Readiness: ${aiReadiness}/100`,
         `Automation Opportunity: ${automationOpportunity}/100`,

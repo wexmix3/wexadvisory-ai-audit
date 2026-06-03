@@ -202,7 +202,7 @@ export default function ResultsPage() {
                   The Snapshot shows your scores. A full audit reveals the specific workflows, labor math, implementation roadmap, and tool-by-tool recommendations that unlock this savings potential.
                 </p>
                 <a
-                  href="https://calendly.com/maxwexley/strategy-call"
+                  href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block bg-[#C8A84B] hover:bg-[#b8952e] text-[#0A1628] font-bold px-8 py-3.5 rounded-lg text-base transition-colors"

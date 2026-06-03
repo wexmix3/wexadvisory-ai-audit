@@ -25,6 +25,10 @@ CRITICAL RULES — violate these and the report is worthless:
 8. The urgency_note MUST name a specific competitor type or market pressure, not generic urgency
 9. Scores must reflect reality: a company with no CRM cannot score above 45 on ai_readiness
 10. dashboard_recommendations must name specific KPIs the business doesn't currently see, not generic metrics
+11. LIMIT opportunities array to EXACTLY 5 items maximum — quality over quantity
+12. LIMIT dashboardRecommendations to EXACTLY 2 items maximum
+13. LIMIT competitiveInsights to EXACTLY 2 items maximum
+14. Keep all string fields concise — workflowDescription and opportunityDescription max 2 sentences each
 
 Output ONLY valid JSON matching this exact schema. No markdown fences, no preamble:
 
@@ -150,6 +154,58 @@ Output ONLY valid JSON matching this exact schema. No markdown fences, no preamb
   }
 }`;
 
+// Recalculate annualSavings from component fields so Claude's arithmetic errors don't propagate.
+// If Claude's numbers are internally consistent (rate × hours × FTEs × ceiling × 12) we use them.
+// If they're off by more than 20%, we override with the correct math.
+function verifyOpportunityMath(data: AuditReportData): AuditReportData {
+  if (!Array.isArray(data.opportunities)) return data;
+
+  const verified = data.opportunities.map((opp) => {
+    const hours = Number(opp.hoursPerMonth) || 0;
+    const rate = Number(opp.fullyLoadedHourlyRate) || 0;
+    const ftes = Number(opp.fteCountAffected) || 1;
+    const ceiling = Number(opp.automationCeilingPct) || 0;
+
+    const annualLaborCost = hours * rate * ftes * 12;
+    const annualSavings = Math.round(annualLaborCost * (ceiling / 100));
+
+    const claimedSavings = Number(opp.annualSavings) || 0;
+    const deviation = claimedSavings > 0 ? Math.abs(claimedSavings - annualSavings) / claimedSavings : 1;
+
+    if (deviation > 0.20 || claimedSavings === 0) {
+      console.log(`[verify] ${opp.id}: claimed $${claimedSavings} → corrected to $${annualSavings}`);
+      return { ...opp, annualLaborCost: Math.round(annualLaborCost), annualSavings };
+    }
+    return opp;
+  });
+
+  // Re-sort by corrected annualSavings and recalculate executive summary totals
+  verified.sort((a, b) => (b.annualSavings ?? 0) - (a.annualSavings ?? 0));
+
+  const totalAnnualSavings = verified.reduce((sum, o) => sum + (o.annualSavings ?? 0), 0);
+  const quickWinSavings = verified
+    .filter((o) => o.quickWin)
+    .reduce((sum, o) => sum + (o.annualSavings ?? 0), 0);
+
+  // Sync the headline text to match the verified total (Claude's original number is now wrong)
+  const fmtShort = (n: number) => n >= 1000000 ? `$${(n / 1000000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
+  const headline = (data.executiveSummary.headline || '').replace(
+    /\$[\d,]+(?:\.\d+)?[KkMm]?/,
+    fmtShort(totalAnnualSavings),
+  );
+
+  return {
+    ...data,
+    opportunities: verified,
+    executiveSummary: {
+      ...data.executiveSummary,
+      headline,
+      totalAnnualSavings,
+      quickWinSavings,
+    },
+  };
+}
+
 export interface SynthesisInput {
   intake: SnapshotIntake;
   classification: BusinessClassification;
@@ -197,15 +253,29 @@ Generate the full AI opportunity audit JSON. Be specific, quantified, and consul
 
   const message = await getClient().messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    max_tokens: 16000,
+    temperature: 0,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : '';
+
+  if (message.stop_reason === 'max_tokens') {
+    console.error('[synthesize] Claude hit max_tokens limit — output was truncated');
+    throw new Error('Synthesis output was truncated — reduce prompt size or contact support');
+  }
+
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Synthesis returned invalid JSON');
 
-  const parsed = JSON.parse(match[0]);
-  return parsed as AuditReportData;
+  let parsed: AuditReportData;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch (e) {
+    console.error('[synthesize] JSON parse failed. stop_reason:', message.stop_reason, 'raw length:', raw.length);
+    throw new Error(`JSON parse error: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  return verifyOpportunityMath(parsed);
 }
