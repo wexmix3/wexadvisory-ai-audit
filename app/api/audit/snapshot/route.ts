@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { runAuditPipeline } from '@/lib/pipeline/audit-pipeline';
 import { sendSnapshotEmail, sendAdminNotification } from '@/lib/email/resend';
 import type { SnapshotIntake } from '@/types/audit';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,12 +25,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'companyUrl and contactEmail are required' }, { status: 400 });
     }
 
-    // Normalize URL
     if (!intake.companyUrl.startsWith('http')) {
       intake.companyUrl = `https://${intake.companyUrl}`;
     }
 
-    // Create audit record
     const db = getSupabase();
     const { data: audit, error } = await db
       .from('audits')
@@ -48,13 +48,16 @@ export async function POST(req: NextRequest) {
 
     if (error || !audit) {
       console.error('Failed to create audit record:', error);
-      return NextResponse.json({ error: 'Failed to create audit' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to create audit', detail: error?.message, code: error?.code }, { status: 500 });
     }
 
     const auditId = audit.id;
 
-    // Run pipeline asynchronously (don't await — return immediately)
-    runAuditPipelineAsync(auditId, intake);
+    // after() keeps the serverless function alive until the promise resolves,
+    // even after the response has been sent to the client.
+    after(async () => {
+      await runAuditPipelineAsync(auditId, intake);
+    });
 
     return NextResponse.json({ auditId });
   } catch (err) {
@@ -69,15 +72,16 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
 
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/results/${auditId}`;
 
-    // Send emails
     await Promise.allSettled([
       sendSnapshotEmail({
         toEmail: intake.contactEmail,
         toName: intake.contactName,
         companyName: intake.companyName,
+        companyUrl: intake.companyUrl,
         auditId,
         totalAnnualSavings: reportData.executiveSummary.totalAnnualSavings,
         resultsUrl,
+        reportData,
       }),
       sendAdminNotification({
         companyName: intake.companyName,
@@ -93,7 +97,6 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       }),
     ]);
 
-    // Create lead record
     const db = getSupabase();
     await db.from('leads').insert({
       audit_id: auditId,
@@ -107,14 +110,27 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       source: 'audit',
     });
 
-    // Mark complete
     await getSupabase()
       .from('audits')
       .update({ status: 'complete', lead_status: 'emailed' })
       .eq('id', auditId);
 
+    // Sync to outreach prospects table — skips if email already exists
+    await getSupabase()
+      .from('prospects')
+      .upsert(
+        {
+          business_name: intake.companyName,
+          contact_name: intake.contactName,
+          email: intake.contactEmail,
+          website: intake.companyUrl,
+          industry: intake.industry,
+          status: 'audit_lead',
+        },
+        { onConflict: 'email', ignoreDuplicates: true }
+      );
+
   } catch (err) {
     console.error('[pipeline async] failed:', err);
-    // Status already set to 'failed' by the pipeline
   }
 }
