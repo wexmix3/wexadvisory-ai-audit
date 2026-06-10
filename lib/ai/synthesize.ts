@@ -206,6 +206,76 @@ function verifyOpportunityMath(data: AuditReportData): AuditReportData {
   };
 }
 
+// ── Quality gate ──────────────────────────────────────────────────────────────
+// Code-based checks on the parsed output. No extra API calls — runs in <1ms.
+// A failing gate triggers one quality retry with specific feedback injected into
+// the prompt so Claude knows exactly what to fix.
+
+interface QualityCheckResult {
+  passed: boolean;
+  issues: string[];
+}
+
+const BANNED_ENTERPRISE_TOOLS = [
+  'salesforce einstein', 'microsoft copilot for enterprise',
+  'servicenow', 'workday ai', 'oracle ai', 'sap ai',
+  'aws comprehend', 'google vertex ai enterprise',
+];
+
+function checkAuditQuality(data: AuditReportData): QualityCheckResult {
+  const issues: string[] = [];
+  const opps = data.opportunities ?? [];
+
+  if (opps.length < 3) {
+    issues.push(`only ${opps.length} opportunit${opps.length === 1 ? 'y' : 'ies'} generated — need at least 3`);
+  }
+
+  const shortDesc = opps.filter(o => !o.workflowDescription || o.workflowDescription.trim().length < 40);
+  if (shortDesc.length > 0) {
+    issues.push(
+      `${shortDesc.length} opportunit${shortDesc.length > 1 ? 'ies have' : 'y has'} a workflow description under 40 characters — describe the actual step-by-step manual process`
+    );
+  }
+
+  const noTools = opps.filter(o => !o.recommendedTools || o.recommendedTools.length === 0);
+  if (noTools.length > 0) {
+    issues.push(
+      `${noTools.length} opportunit${noTools.length > 1 ? 'ies have' : 'y has'} no recommended tools — name at least one specific tool with pricing per opportunity`
+    );
+  }
+
+  const zeroSavings = opps.filter(o => !o.annualSavings || o.annualSavings <= 0);
+  if (zeroSavings.length > 1) {
+    issues.push(
+      `${zeroSavings.length} opportunities have zero annual savings — calculate from hours_per_month × rate × ftes × ceiling × 12`
+    );
+  }
+
+  if (!data.executiveSummary?.totalAnnualSavings || data.executiveSummary.totalAnnualSavings <= 0) {
+    issues.push('total annual savings is zero — sum the verified opportunity savings');
+  }
+
+  const allToolNames = opps
+    .flatMap(o => o.recommendedTools ?? [])
+    .map(t => (t.name ?? '').toLowerCase());
+  const banned = allToolNames.filter(n => BANNED_ENTERPRISE_TOOLS.some(b => n.includes(b)));
+  if (banned.length > 0) {
+    issues.push(`enterprise tools flagged (${banned.join(', ')}) — replace with affordable alternatives under $500/month`);
+  }
+
+  return { passed: issues.length === 0, issues };
+}
+
+function buildQualityFeedback(check: QualityCheckResult, attempt: number): string {
+  return (
+    `\n\nQUALITY GATE FAILED (attempt ${attempt} — do not repeat these mistakes):\n` +
+    check.issues.map(i => `- ${i}`).join('\n') +
+    '\n\nFix every issue above in this response. Be specific: name exact workflows, not categories. Every opportunity must have a step-by-step workflow description (2+ sentences), at least one named affordable tool with pricing, and a calculated savings figure.'
+  );
+}
+
+// ── Synthesis internals ───────────────────────────────────────────────────────
+
 export interface SynthesisInput {
   intake: SnapshotIntake;
   classification: BusinessClassification;
@@ -217,9 +287,24 @@ export interface SynthesisInput {
   benchmarkContext: string;
 }
 
-export async function synthesizeAudit(input: SynthesisInput): Promise<AuditReportData> {
-  const userMessage = `
-COMPANY: ${input.intake.companyName}
+// Progressive content limits: full → 60% → 33% to recover from max_tokens truncation
+const CONTENT_LIMITS = [
+  { web: 6000, job: 3000 },
+  { web: 3600, job: 1800 },
+  { web: 2000, job: 1200 },
+] as const;
+
+function buildUserMessage(
+  input: SynthesisInput,
+  webLimit: number,
+  jobLimit: number,
+  jsonOnly = false,
+  qualityFeedback = '',
+): string {
+  const prefix = jsonOnly
+    ? 'IMPORTANT: Return ONLY the JSON object. No preamble, no explanation, no markdown fences.\n\n'
+    : '';
+  return `${prefix}COMPANY: ${input.intake.companyName}
 URL: ${input.intake.companyUrl}
 INDUSTRY (self-reported): ${input.intake.industry}
 EMPLOYEE RANGE: ${input.intake.employeeRange}
@@ -242,40 +327,109 @@ INDUSTRY BENCHMARK CONTEXT:
 ${input.benchmarkContext}
 
 WEBSITE CONTENT (scraped):
-${input.webContent.slice(0, 6000)}
+${input.webContent.slice(0, webLimit)}
 
 JOB POSTING & REVIEW SIGNALS:
-${input.jobSignals.slice(0, 3000)}
+${input.jobSignals.slice(0, jobLimit)}
 
 ${input.trafficSummary ? `TRAFFIC DATA:\n${input.trafficSummary}` : ''}
 
-Generate the full AI opportunity audit JSON. Be specific, quantified, and consultative. Every number must have clear logic behind it based on the benchmark data and company signals provided.`.trim();
+Generate the full AI opportunity audit JSON. Be specific, quantified, and consultative. Every number must have clear logic behind it based on the benchmark data and company signals provided.${qualityFeedback}`.trim();
+}
 
-  const message = await getClient().messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 16000,
-    temperature: 0,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
-  });
+// One synthesis attempt with technical retries (JSON parse / max_tokens).
+// qualityFeedback is appended to the user message when non-empty.
+async function runSynthesisWithRetry(
+  input: SynthesisInput,
+  qualityFeedback: string,
+  isQualityRetry: boolean,
+): Promise<AuditReportData> {
+  let lastError: Error = new Error('Synthesis failed after all attempts');
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '';
+  for (let attempt = 0; attempt < CONTENT_LIMITS.length; attempt++) {
+    const { web: webLimit, job: jobLimit } = CONTENT_LIMITS[attempt];
+    // Force JSON-only prefix on technical retries and quality retries
+    const jsonOnly = attempt > 0 || isQualityRetry;
 
-  if (message.stop_reason === 'max_tokens') {
-    console.error('[synthesize] Claude hit max_tokens limit — output was truncated');
-    throw new Error('Synthesis output was truncated — reduce prompt size or contact support');
+    if (attempt > 0) {
+      console.warn(
+        `[synthesize] retrying (attempt ${attempt + 1}/${CONTENT_LIMITS.length}) web=${webLimit} job=${jobLimit}`,
+      );
+    }
+
+    const message = await getClient().messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 16000,
+      temperature: 0,
+      system: SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: buildUserMessage(input, webLimit, jobLimit, jsonOnly, qualityFeedback),
+      }],
+    });
+
+    const raw = message.content[0].type === 'text' ? message.content[0].text : '';
+
+    if (message.stop_reason === 'max_tokens') {
+      console.warn(`[synthesize] attempt ${attempt + 1} hit max_tokens — reducing content and retrying`);
+      lastError = new Error('Synthesis output truncated');
+      continue;
+    }
+
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) {
+      console.warn(`[synthesize] attempt ${attempt + 1} returned no JSON`);
+      lastError = new Error('Synthesis returned no JSON');
+      continue;
+    }
+
+    try {
+      const parsed: AuditReportData = JSON.parse(match[0]);
+      return verifyOpportunityMath(parsed);
+    } catch (e) {
+      console.warn(
+        `[synthesize] attempt ${attempt + 1} JSON parse failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      lastError = e instanceof Error ? e : new Error(String(e));
+      continue;
+    }
   }
 
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Synthesis returned invalid JSON');
+  throw lastError;
+}
 
-  let parsed: AuditReportData;
-  try {
-    parsed = JSON.parse(match[0]);
-  } catch (e) {
-    console.error('[synthesize] JSON parse failed. stop_reason:', message.stop_reason, 'raw length:', raw.length);
-    throw new Error(`JSON parse error: ${e instanceof Error ? e.message : String(e)}`);
+// ── Public API ────────────────────────────────────────────────────────────────
+// Quality loop: generate → check → if weak, inject specific feedback → retry once.
+// Max 2 total synthesis calls (1 quality retry). No extra API cost for scoring.
+// Always returns the best result available — never throws on quality failure.
+
+const MAX_QUALITY_TURNS = 1;
+
+export async function synthesizeAudit(input: SynthesisInput): Promise<AuditReportData> {
+  let qualityFeedback = '';
+
+  for (let qualityTurn = 0; qualityTurn <= MAX_QUALITY_TURNS; qualityTurn++) {
+    const result = await runSynthesisWithRetry(input, qualityFeedback, qualityTurn > 0);
+    const quality = checkAuditQuality(result);
+
+    if (quality.passed) {
+      if (qualityTurn > 0) {
+        console.log(`[quality-loop] passed on quality turn ${qualityTurn + 1}`);
+      }
+      return result;
+    }
+
+    if (qualityTurn === MAX_QUALITY_TURNS) {
+      console.warn(
+        `[quality-loop] returning best result after ${MAX_QUALITY_TURNS + 1} quality turn(s) — issues: ${quality.issues.join('; ')}`,
+      );
+      return result;
+    }
+
+    console.warn(`[quality-loop] turn ${qualityTurn + 1} failed: ${quality.issues.join('; ')}`);
+    qualityFeedback = buildQualityFeedback(quality, qualityTurn + 1);
   }
 
-  return verifyOpportunityMath(parsed);
+  // TypeScript requires a return path here even though the loop always returns
+  throw new Error('[quality-loop] unexpected exit — this should never be reached');
 }
