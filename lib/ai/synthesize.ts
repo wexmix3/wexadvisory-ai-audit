@@ -357,8 +357,10 @@ async function runSynthesisWithRetry(
       );
     }
 
+    const model = process.env.AUDIT_MODEL ?? 'claude-sonnet-4-6';
+
     const message = await getClient().messages.create({
-      model: 'claude-sonnet-4-6',
+      model,
       max_tokens: 16000,
       temperature: 0,
       system: SYSTEM_PROMPT,
