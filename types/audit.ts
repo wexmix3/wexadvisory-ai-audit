@@ -133,6 +133,42 @@ export interface AuditReportData {
   };
 }
 
+export type ProposalStatus = 'pending' | 'generated' | 'failed' | 'sent';
+
+export interface ProposalOpportunityFrame {
+  title: string;
+  currentState: string;
+  proposedApproach: string;
+  estimatedSavings: number;
+  timelineWeeks: number;
+}
+
+export interface ProposalContent {
+  contactFirstName: string;
+  companyName: string;
+  companyUrl: string;
+  preparedDate: string;
+  executiveSummary: string;
+  opportunities: ProposalOpportunityFrame[];
+  engagementScope: string;
+  engagementTimeline: string;
+  monthlyRetainerDescription: string;
+  nextStep: string;
+  emailSubject: string;
+  emailBody: string;
+}
+
+export interface ProposalData {
+  id: string;
+  auditId: string;
+  status: ProposalStatus;
+  content: ProposalContent | null;
+  gmailDraftId: string | null;
+  costUsd: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 export interface Audit {
   id: string;
   auditType: AuditType;

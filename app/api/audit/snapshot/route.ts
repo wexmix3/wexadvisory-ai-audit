@@ -3,6 +3,7 @@ import { after } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { runAuditPipeline } from '@/lib/pipeline/audit-pipeline';
 import { sendSnapshotEmail, sendAdminNotification } from '@/lib/email/resend';
+import { runProposalPipeline } from '@/lib/proposal/proposal-pipeline';
 import type { SnapshotIntake } from '@/types/audit';
 
 export const dynamic = 'force-dynamic';
@@ -114,6 +115,16 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       .from('audits')
       .update({ status: 'complete', lead_status: 'emailed' })
       .eq('id', auditId);
+
+    // Auto-proposal: fire and forget — silent fail, never affects audit delivery
+    const { data: auditRecord } = await db.from('audits').select('traffic_data').eq('id', auditId).single();
+    const traffic = auditRecord?.traffic_data as { monthlyTraffic?: number; organicKeywords?: number } | null;
+    const trafficSummary = traffic
+      ? `Monthly organic traffic: ~${traffic.monthlyTraffic?.toLocaleString() ?? 'unknown'} visits, ${traffic.organicKeywords?.toLocaleString() ?? 'unknown'} keywords ranked`
+      : '';
+    runProposalPipeline(auditId, intake, reportData, trafficSummary).catch((err) => {
+      console.error('[proposal pipeline] unhandled error:', err);
+    });
 
     // Sync to outreach prospects table — skips if email already exists
     await getSupabase()
