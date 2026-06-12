@@ -24,7 +24,8 @@ RULES:
 5. Keep every string field concise — no paragraph over 4 sentences
 6. emailBody must be 3-4 short paragraphs: (1) what we found, (2) what we propose, (3) CTA. Formal but human.
 7. emailSubject must be specific — reference company name and top savings figure
-8. All monetary values must use exact figures from the audit, not rounded estimates
+8. The emailBody must only reference savings figures that exactly match the opportunities array. Never summarize or re-estimate — pull exact numbers from the JSON.
+9. All monetary values must use exact figures from the audit, not rounded estimates
 
 Output ONLY valid JSON — no markdown, no preamble:
 
@@ -111,8 +112,11 @@ export async function generateProposalContent(
     day: '2-digit',
   });
 
+  const model = process.env.PROPOSAL_MODEL ?? 'claude-opus-4-8';
+  console.log(`[proposal] using model: ${model}`);
+
   const message = await getClient().messages.create({
-    model: 'claude-opus-4-8',
+    model,
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [{
