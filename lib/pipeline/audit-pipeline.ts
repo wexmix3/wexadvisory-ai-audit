@@ -8,7 +8,7 @@ import {
   extractManualProcessSignals,
 } from '@/lib/research/tech-detector';
 import { classifyBusiness } from '@/lib/ai/classify';
-import { synthesizeAudit } from '@/lib/ai/synthesize';
+import { synthesizeAudit, checkAuditQuality, scoreAuditQualityLLM } from '@/lib/ai/synthesize';
 import { getBenchmark, formatBenchmarkForPrompt } from '@/lib/benchmarks/industry-data';
 import { computeScores } from '@/lib/scoring/score-engine';
 import type { SnapshotIntake } from '@/types/audit';
@@ -92,6 +92,24 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       benchmarkContext,
     });
 
+    // Evaluate quality in parallel — never throws, never blocks audit delivery
+    const [llmQualityResult] = await Promise.allSettled([
+      scoreAuditQualityLLM(reportData, intake.companyName),
+    ]);
+    const gateResult = checkAuditQuality(reportData);
+    const llmQuality = llmQualityResult.status === 'fulfilled' ? llmQualityResult.value : null;
+
+    const evalQuality = {
+      scored_at: new Date().toISOString(),
+      gate_passed: gateResult.passed,
+      gate_issues: gateResult.issues,
+      llm_score: llmQuality?.score ?? null,
+      llm_reasoning: llmQuality?.reasoning ?? null,
+      opportunity_count: reportData.opportunities?.length ?? 0,
+      total_annual_savings: reportData.executiveSummary?.totalAnnualSavings ?? 0,
+      has_quick_wins: (reportData.opportunities ?? []).some(o => o.quickWin),
+    };
+
     // Override Claude's scores with the deterministic score engine for consistency
     const deterministicScores = computeScores({
       classification,
@@ -108,6 +126,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       scores: reportData.scores,
       opportunities: reportData.opportunities,
       report_data: reportData,
+      eval_quality: evalQuality,
       status: 'generating', // still generating PDF
     }).eq('id', auditId);
 

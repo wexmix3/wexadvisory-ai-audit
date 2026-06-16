@@ -222,7 +222,7 @@ const BANNED_ENTERPRISE_TOOLS = [
   'aws comprehend', 'google vertex ai enterprise',
 ];
 
-function checkAuditQuality(data: AuditReportData): QualityCheckResult {
+export function checkAuditQuality(data: AuditReportData): QualityCheckResult {
   const issues: string[] = [];
   const opps = data.opportunities ?? [];
 
@@ -264,6 +264,57 @@ function checkAuditQuality(data: AuditReportData): QualityCheckResult {
   }
 
   return { passed: issues.length === 0, issues };
+}
+
+export interface LLMQualityScore {
+  score: number;       // 0–1 normalized from 1–5
+  reasoning: string;
+}
+
+export async function scoreAuditQualityLLM(
+  data: AuditReportData,
+  companyName: string,
+): Promise<LLMQualityScore | null> {
+  try {
+    const opps = (data.opportunities ?? []).slice(0, 3).map(o => ({
+      title: o.title,
+      tools: (o.recommendedTools ?? []).map(t => t.name).join(', '),
+      savings: o.annualSavings,
+      workflow: o.workflowDescription?.slice(0, 100),
+    }));
+
+    const prompt = `You are evaluating an AI audit report produced for ${companyName}.
+
+Top opportunities:
+${opps.map((o, i) => `${i + 1}. ${o.title} — tools: ${o.tools} — savings: $${o.savings?.toLocaleString()} — workflow: ${o.workflow}`).join('\n')}
+
+Total annual savings: $${data.executiveSummary?.totalAnnualSavings?.toLocaleString()}
+Opportunities: ${data.opportunities?.length ?? 0}
+Quick wins: ${data.opportunities?.filter(o => o.quickWin).length ?? 0}
+
+Score overall audit quality 1–5:
+5 = Specific workflows, named tools with pricing, quantified savings with clear math
+4 = Mostly specific, minor gaps in pricing or workflow detail
+3 = Adequate but some opportunities feel generic
+2 = Weak specificity, tools named but not matched to workflows
+1 = Generic advice, no real quantification
+
+Respond ONLY with JSON: {"score": <1-5>, "reasoning": "<one sentence>"}`;
+
+    const message = await getClient().messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = message.content[0].type === 'text' ? message.content[0].text : '';
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]);
+    return { score: Math.round((parsed.score / 5) * 100) / 100, reasoning: parsed.reasoning ?? '' };
+  } catch {
+    return null;
+  }
 }
 
 function buildQualityFeedback(check: QualityCheckResult, attempt: number): string {
