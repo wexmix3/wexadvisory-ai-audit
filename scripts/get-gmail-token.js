@@ -10,7 +10,7 @@
 const CLIENT_ID = 'PASTE_CLIENT_ID_HERE';
 const CLIENT_SECRET = 'PASTE_CLIENT_SECRET_HERE';
 const REDIRECT_URI = 'http://localhost:3456';
-const SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
+const SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 const http = require('http');
 const url = require('url');
