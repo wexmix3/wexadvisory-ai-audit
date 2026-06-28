@@ -42,14 +42,17 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-[#C8A84B]/10 border border-[#C8A84B]/30 rounded-full px-4 py-1.5 text-[#C8A84B] text-sm font-medium mb-8">
             <span className="w-2 h-2 rounded-full bg-[#C8A84B] animate-pulse" />
-            Free · Instant · No credit card
+            Free · Fast · No credit card
           </div>
           <h1 className="text-5xl sm:text-6xl font-bold leading-tight mb-6">
-            See exactly where AI saves<br />
+            See where AI can save<br />
             <span className="text-[#C8A84B]">your business money</span>
           </h1>
+          <p className="text-slate-200 text-base max-w-2xl mx-auto mb-4">
+            The Wex AI Readiness Audit Tool scores your business across five AI dimensions and produces a quantified savings report — free, no credit card.
+          </p>
           <p className="text-slate-300 text-xl max-w-2xl mx-auto mb-10">
-            Enter your website URL. In 2–3 minutes, get a quantified AI opportunity analysis with real labor math — not generic advice.
+            Enter your website URL and get a quantified AI opportunity analysis with real labor math — not generic advice.
           </p>
           <Link
             href="/audit"
@@ -58,7 +61,7 @@ export default function LandingPage() {
             Get My Free AI Snapshot →
           </Link>
           <p className="text-slate-500 text-sm mt-4">
-            Benchmarked against 12 industries · Powered by Claude AI
+            Tailored to your industry · Powered by Claude AI
           </p>
         </div>
       </section>
@@ -143,8 +146,8 @@ export default function LandingPage() {
       {/* Industries */}
       <section className="px-6 py-16 border-t border-slate-800">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl font-bold mb-3">Benchmarked across 12 industries</h2>
-          <p className="text-slate-400 text-sm mb-8">Your scores are compared against businesses in your specific industry and size</p>
+          <h2 className="text-2xl font-bold mb-3">Tailored to your industry</h2>
+          <p className="text-slate-400 text-sm mb-8">Your report is tailored to your business size, industry, and website</p>
           <div className="flex flex-wrap justify-center gap-2">
             {INDUSTRIES.map((ind) => (
               <span key={ind} className="bg-slate-800 border border-slate-700 text-slate-300 text-sm px-3 py-1.5 rounded-full">
