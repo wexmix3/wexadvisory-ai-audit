@@ -24,7 +24,7 @@ const RED    = '#EF4444';
 
 const s = StyleSheet.create({
   // ── Base pages ──────────────────────────────────────────────
-  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingBottom: 44 },
+  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingBottom: 44, justifyContent: 'center' },
   coverPage: { backgroundColor: NAVY, fontFamily: 'Helvetica' },
 
   // ── Cover ───────────────────────────────────────────────────
@@ -53,8 +53,8 @@ const s = StyleSheet.create({
   coverFooterTxt:  { color: MGRAY, fontSize: 8.5 },
 
   // ── Shared layout ────────────────────────────────────────────
-  sec:      { padding: '28 40 0 40' },
-  secLast:  { padding: '24 40 28 40' },
+  sec:      { padding: '36 40 0 40' },
+  secLast:  { padding: '32 40 28 40' },
   eyebrow:  { color: GOLD, fontSize: 8, letterSpacing: 2, marginBottom: 4 },
   heading:  { color: NAVY, fontSize: 17, fontFamily: 'Helvetica-Bold', marginBottom: 14 },
   divider:  { height: 1, backgroundColor: LGRAY, margin: '16 40' },
@@ -188,9 +188,172 @@ interface Props {
   generatedDate: string;
 }
 
+function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][number]; idx: number }) {
+  const cs = confStyle(opp.confidenceLevel);
+  const laborCost = opp.hoursPerMonth * opp.fullyLoadedHourlyRate * opp.fteCountAffected * 12;
+  return (
+    <View style={s.oppCard} wrap={false}>
+      <View style={s.oppHeader}>
+        <Text style={s.oppTitle}>
+          {idx + 1}. {opp.title}
+        </Text>
+        <View style={s.oppBadges}>
+          <View style={[s.oppBadge, { backgroundColor: cs.bg }]}>
+            <Text style={[s.oppBadgeTxt, { color: cs.txt }]}>
+              {opp.confidenceLevel === 'high' ? 'HIGH' : 'MED'} CONFIDENCE
+            </Text>
+          </View>
+          {opp.quickWin && (
+            <View style={[s.oppBadge, { backgroundColor: GOLD }]}>
+              <Text style={[s.oppBadgeTxt, { color: NAVY }]}>QUICK WIN</Text>
+            </View>
+          )}
+          <View style={[s.oppBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+            <Text style={[s.oppBadgeTxt, { color: WHITE }]}>{opp.department}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={s.oppBody}>
+        <View style={s.oppCols}>
+          <View style={s.oppCol}>
+            <Text style={s.oppColLbl}>CURRENT MANUAL PROCESS</Text>
+            <Text style={s.oppColTxt}>{opp.workflowDescription}</Text>
+          </View>
+          <View style={{ width: 1, backgroundColor: LGRAY }} />
+          <View style={s.oppCol}>
+            <Text style={s.oppColLbl}>AUTOMATED VERSION</Text>
+            <Text style={s.oppColTxt}>{opp.opportunityDescription}</Text>
+          </View>
+        </View>
+
+        <View style={s.mathBox}>
+          <Text style={s.mathLbl}>SAVINGS CALCULATION</Text>
+          <Text style={s.mathFormula}>
+            {opp.hoursPerMonth} hrs/mo  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.fteCountAffected} FTE{opp.fteCountAffected !== 1 ? 's' : ''}  x  {opp.automationCeilingPct}% automation  x  12 months
+          </Text>
+          <Text style={s.mathResult}>= {fmt(opp.annualSavings)} / year</Text>
+          <Text style={s.mathNote}>
+            Annual labor cost at risk: {fmt(laborCost)}  |  {opp.automationCeilingPct}% can be automated
+          </Text>
+        </View>
+
+        <View style={s.implRow}>
+          <View style={s.implPill}>
+            <Text style={s.implLbl}>COMPLEXITY</Text>
+            <Text style={s.implVal}>{opp.complexity.charAt(0).toUpperCase() + opp.complexity.slice(1)}</Text>
+          </View>
+          <View style={s.implPill}>
+            <Text style={s.implLbl}>TIMELINE</Text>
+            <Text style={s.implVal}>{opp.implementationWeeks} weeks</Text>
+          </View>
+          <View style={s.implPill}>
+            <Text style={s.implLbl}>INVESTMENT</Text>
+            <Text style={s.implVal}>${opp.implementationCostLow.toLocaleString()}–${opp.implementationCostHigh.toLocaleString()}</Text>
+          </View>
+          <View style={s.implPill}>
+            <Text style={s.implLbl}>PAYBACK</Text>
+            <Text style={[s.implVal, { color: GREEN }]}>{opp.roiMonths} months</Text>
+          </View>
+        </View>
+
+        {(opp.recommendedTools?.length ?? 0) > 0 && (
+          <View>
+            <Text style={[s.oppColLbl, { marginBottom: 4 }]}>RECOMMENDED TOOLS</Text>
+            <View style={s.toolsRow}>
+              {opp.recommendedTools.map((t, i) => (
+                <View key={i} style={s.toolPill}>
+                  <Text style={s.toolPillTxt}>{t.name} — {t.purpose}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function Roadmap({ implementationRoadmap }: { implementationRoadmap: AuditReportData['implementationRoadmap'] }) {
+  return (
+    <View style={s.phaseCols}>
+      {([
+        [1, 'Quick Wins',  implementationRoadmap.phase1],
+        [2, 'Foundation', implementationRoadmap.phase2],
+        [3, 'Scale',      implementationRoadmap.phase3],
+      ] as [number, string, typeof implementationRoadmap.phase1][]).map(([num, label, phase], i) => (
+        <View key={num} style={i === 2 ? [s.phaseBox, { marginRight: 0 }] : s.phaseBox}>
+          <View style={[s.phaseHead, { backgroundColor: phaseColor(num) }]}>
+            <Text style={s.phaseTitle}>{label.toUpperCase()}</Text>
+            <Text style={s.phaseDur}>{phase.durationWeeks} weeks</Text>
+          </View>
+          <View style={s.phaseBody}>
+            {(phase.items ?? []).map((item, i, arr) => (
+              <View key={i} style={i === arr.length - 1 ? s.phaseItemLast : s.phaseItem}>
+                <Text style={s.phaseItemTtl}>{item.title}</Text>
+                <Text style={s.phaseItemTxt}>{item.description}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={s.phaseTotals}>
+            <View style={s.phaseTotRow}>
+              <Text style={s.phaseTotLbl}>Investment</Text>
+              <Text style={s.phaseTotVal}>{fmt(phase.totalInvestment)}</Text>
+            </View>
+            <View style={s.phaseTotRow}>
+              <Text style={s.phaseTotLbl}>Annual Savings</Text>
+              <Text style={[s.phaseTotVal, { color: GREEN }]}>{fmt(phase.totalSavings)}</Text>
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }) {
+  return (
+    <View style={s.secLast}>
+      <Text style={s.eyebrow}>NEXT STEPS</Text>
+      <Text style={[s.heading, { marginBottom: 10 }]}>What to Do This Week</Text>
+
+      <View style={{ marginBottom: 16 }}>
+        {(nextSteps.immediate ?? []).map((step, i) => (
+          <View key={i} style={s.stepItem}>
+            <Text style={s.stepBullet}>-&gt;</Text>
+            <Text style={s.stepTxt}>{step}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={s.ctaBox}>
+        <Text style={s.ctaTitle}>Ready to implement?</Text>
+        <Text style={s.ctaBody}>
+          Book a free 30-minute strategy call. We will walk through your results, prioritize
+          the quick wins, and map out exactly what a Wex Advisory engagement would look like.
+        </Text>
+        <View style={s.ctaBtn}>
+          <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
+        </View>
+        <Text style={s.ctaMeta}>No sales pressure  |  30 minutes  |  Walk through your results together</Text>
+      </View>
+    </View>
+  );
+}
+
 function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) {
   const { executiveSummary, scores, opportunities, implementationRoadmap, nextSteps } = report;
   const top3 = opportunities.slice(0, 3);
+
+  // Explicit pagination — 2 opportunity cards per page, rather than letting
+  // react-pdf's auto-flow decide. Auto-flow could leave a lone card on its
+  // own page with most of the page blank below it; chunking ourselves lets
+  // us fill that blank space with the roadmap instead of leaving it empty.
+  const oppPages: typeof opportunities[] = [];
+  for (let i = 0; i < opportunities.length; i += 2) {
+    oppPages.push(opportunities.slice(i, i + 2));
+  }
+  const lastPageIsSingle = oppPages.length > 0 && oppPages[oppPages.length - 1].length === 1;
 
   return (
     <Document
@@ -331,177 +494,57 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
         <Footer company={companyName} />
       </Page>
 
-      {/* ── PAGES 4+: OPPORTUNITIES (flowing — ~2 per page) ───── */}
-      <Page size="A4" style={s.page}>
-        <View style={s.sec}>
-          <Text style={s.eyebrow}>AI OPPORTUNITIES</Text>
-          <Text style={s.heading}>Ranked by Annual Savings</Text>
-
-          {opportunities.map((opp, idx) => {
-            const cs = confStyle(opp.confidenceLevel);
-            const laborCost = opp.hoursPerMonth * opp.fullyLoadedHourlyRate * opp.fteCountAffected * 12;
-            return (
-              <View key={opp.id} style={s.oppCard} wrap={false}>
-                {/* Header */}
-                <View style={s.oppHeader}>
-                  <Text style={s.oppTitle}>
-                    {idx + 1}. {opp.title}
-                  </Text>
-                  <View style={s.oppBadges}>
-                    <View style={[s.oppBadge, { backgroundColor: cs.bg }]}>
-                      <Text style={[s.oppBadgeTxt, { color: cs.txt }]}>
-                        {opp.confidenceLevel === 'high' ? 'HIGH' : 'MED'} CONFIDENCE
-                      </Text>
-                    </View>
-                    {opp.quickWin && (
-                      <View style={[s.oppBadge, { backgroundColor: GOLD }]}>
-                        <Text style={[s.oppBadgeTxt, { color: NAVY }]}>QUICK WIN</Text>
-                      </View>
-                    )}
-                    <View style={[s.oppBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                      <Text style={[s.oppBadgeTxt, { color: WHITE }]}>{opp.department}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Body */}
-                <View style={s.oppBody}>
-                  {/* Two-column descriptions */}
-                  <View style={s.oppCols}>
-                    <View style={s.oppCol}>
-                      <Text style={s.oppColLbl}>CURRENT MANUAL PROCESS</Text>
-                      <Text style={s.oppColTxt}>{opp.workflowDescription}</Text>
-                    </View>
-                    <View style={{ width: 1, backgroundColor: LGRAY }} />
-                    <View style={s.oppCol}>
-                      <Text style={s.oppColLbl}>AUTOMATED VERSION</Text>
-                      <Text style={s.oppColTxt}>{opp.opportunityDescription}</Text>
-                    </View>
-                  </View>
-
-                  {/* Math */}
-                  <View style={s.mathBox}>
-                    <Text style={s.mathLbl}>SAVINGS CALCULATION</Text>
-                    <Text style={s.mathFormula}>
-                      {opp.hoursPerMonth} hrs/mo  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.fteCountAffected} FTE{opp.fteCountAffected !== 1 ? 's' : ''}  x  {opp.automationCeilingPct}% automation  x  12 months
-                    </Text>
-                    <Text style={s.mathResult}>= {fmt(opp.annualSavings)} / year</Text>
-                    <Text style={s.mathNote}>
-                      Annual labor cost at risk: {fmt(laborCost)}  |  {opp.automationCeilingPct}% can be automated
-                    </Text>
-                  </View>
-
-                  {/* Implementation pills */}
-                  <View style={s.implRow}>
-                    <View style={s.implPill}>
-                      <Text style={s.implLbl}>COMPLEXITY</Text>
-                      <Text style={s.implVal}>{opp.complexity.charAt(0).toUpperCase() + opp.complexity.slice(1)}</Text>
-                    </View>
-                    <View style={s.implPill}>
-                      <Text style={s.implLbl}>TIMELINE</Text>
-                      <Text style={s.implVal}>{opp.implementationWeeks} weeks</Text>
-                    </View>
-                    <View style={s.implPill}>
-                      <Text style={s.implLbl}>INVESTMENT</Text>
-                      <Text style={s.implVal}>${opp.implementationCostLow.toLocaleString()}–${opp.implementationCostHigh.toLocaleString()}</Text>
-                    </View>
-                    <View style={s.implPill}>
-                      <Text style={s.implLbl}>PAYBACK</Text>
-                      <Text style={[s.implVal, { color: GREEN }]}>{opp.roiMonths} months</Text>
-                    </View>
-                  </View>
-
-                  {/* Tools */}
-                  {(opp.recommendedTools?.length ?? 0) > 0 && (
-                    <View>
-                      <Text style={[s.oppColLbl, { marginBottom: 4 }]}>RECOMMENDED TOOLS</Text>
-                      <View style={s.toolsRow}>
-                        {opp.recommendedTools.map((t, i) => (
-                          <View key={i} style={s.toolPill}>
-                            <Text style={s.toolPillTxt}>{t.name} — {t.purpose}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-        <Footer company={companyName} />
-      </Page>
-
-      {/* ── FINAL PAGE: ROADMAP + NEXT STEPS ─────────────────── */}
-      <Page size="A4" style={s.page}>
-        <View style={s.sec}>
-          <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
-          <Text style={s.heading}>Your 3-Phase Roadmap</Text>
-
-          <View style={s.phaseCols}>
-            {([
-              [1, 'Quick Wins',  implementationRoadmap.phase1],
-              [2, 'Foundation', implementationRoadmap.phase2],
-              [3, 'Scale',      implementationRoadmap.phase3],
-            ] as [number, string, typeof implementationRoadmap.phase1][]).map(([num, label, phase], i) => (
-              <View key={num} style={i === 2 ? [s.phaseBox, { marginRight: 0 }] : s.phaseBox}>
-                <View style={[s.phaseHead, { backgroundColor: phaseColor(num) }]}>
-                  <Text style={s.phaseTitle}>{label.toUpperCase()}</Text>
-                  <Text style={s.phaseDur}>{phase.durationWeeks} weeks</Text>
-                </View>
-                <View style={s.phaseBody}>
-                  {(phase.items ?? []).map((item, i, arr) => (
-                    <View key={i} style={i === arr.length - 1 ? s.phaseItemLast : s.phaseItem}>
-                      <Text style={s.phaseItemTtl}>{item.title}</Text>
-                      <Text style={s.phaseItemTxt}>{item.description}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={s.phaseTotals}>
-                  <View style={s.phaseTotRow}>
-                    <Text style={s.phaseTotLbl}>Investment</Text>
-                    <Text style={s.phaseTotVal}>{fmt(phase.totalInvestment)}</Text>
-                  </View>
-                  <View style={s.phaseTotRow}>
-                    <Text style={s.phaseTotLbl}>Annual Savings</Text>
-                    <Text style={[s.phaseTotVal, { color: GREEN }]}>{fmt(phase.totalSavings)}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={s.divider} />
-
-        <View style={s.secLast}>
-          <Text style={s.eyebrow}>NEXT STEPS</Text>
-          <Text style={[s.heading, { marginBottom: 10 }]}>What to Do This Week</Text>
-
-          <View style={{ marginBottom: 16 }}>
-            {(nextSteps.immediate ?? []).map((step, i) => (
-              <View key={i} style={s.stepItem}>
-                <Text style={s.stepBullet}>-&gt;</Text>
-                <Text style={s.stepTxt}>{step}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={s.ctaBox}>
-            <Text style={s.ctaTitle}>Ready to implement?</Text>
-            <Text style={s.ctaBody}>
-              Book a free 30-minute strategy call. We will walk through your results, prioritize
-              the quick wins, and map out exactly what a Wex Advisory engagement would look like.
-            </Text>
-            <View style={s.ctaBtn}>
-              <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
+      {/* ── PAGES 4+: OPPORTUNITIES (explicit pagination — 2 per page) ── */}
+      {oppPages.map((group, pageIdx) => {
+        const isLastOppPage = pageIdx === oppPages.length - 1;
+        const showRoadmapHere = isLastOppPage && lastPageIsSingle;
+        return (
+          <Page size="A4" style={s.page} key={pageIdx}>
+            <View style={s.sec}>
+              <Text style={s.eyebrow}>AI OPPORTUNITIES{pageIdx > 0 ? ' (CONTINUED)' : ''}</Text>
+              <Text style={s.heading}>Ranked by Annual Savings</Text>
+              {group.map((opp, i) => (
+                <OpportunityCard key={opp.id} opp={opp} idx={pageIdx * 2 + i} />
+              ))}
             </View>
-            <Text style={s.ctaMeta}>No sales pressure  |  30 minutes  |  Walk through your results together</Text>
-          </View>
-        </View>
 
-        <Footer company={companyName} />
-      </Page>
+            {showRoadmapHere && (
+              <>
+                <View style={s.divider} />
+                <View style={s.sec}>
+                  <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
+                  <Text style={s.heading}>Your 3-Phase Roadmap</Text>
+                  <Roadmap implementationRoadmap={implementationRoadmap} />
+                </View>
+              </>
+            )}
+
+            <Footer company={companyName} />
+          </Page>
+        );
+      })}
+
+      {/* ── ROADMAP PAGE (only when the last opportunities page was full) ── */}
+      {!lastPageIsSingle && (
+        <Page size="A4" style={s.page}>
+          <View style={s.sec}>
+            <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
+            <Text style={s.heading}>Your 3-Phase Roadmap</Text>
+            <Roadmap implementationRoadmap={implementationRoadmap} />
+          </View>
+          <View style={s.divider} />
+          <NextStepsCta nextSteps={nextSteps} />
+          <Footer company={companyName} />
+        </Page>
+      )}
+
+      {/* ── FINAL PAGE: NEXT STEPS + CTA ─────────────────────── */}
+      {lastPageIsSingle && (
+        <Page size="A4" style={s.page}>
+          <NextStepsCta nextSteps={nextSteps} />
+          <Footer company={companyName} />
+        </Page>
+      )}
 
     </Document>
   );
