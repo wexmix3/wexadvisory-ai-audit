@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { runAuditPipeline } from '@/lib/pipeline/audit-pipeline';
 import { sendSnapshotEmail, sendAdminNotification } from '@/lib/email/resend';
 import { runProposalPipeline } from '@/lib/proposal/proposal-pipeline';
+import { scoreVisualQuality } from '@/lib/pdf/visual-qa';
 import type { SnapshotIntake } from '@/types/audit';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
 
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/results/${auditId}`;
 
-    await Promise.allSettled([
+    const [snapshotEmailResult] = await Promise.allSettled([
       sendSnapshotEmail({
         toEmail: intake.contactEmail,
         toName: intake.contactName,
@@ -63,6 +64,28 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         resultsUrl,
       }),
     ]);
+
+    // Visual QA: fire and forget — rasterizes the same PDF buffer just emailed and
+    // scores layout/whitespace via a vision model. Observability only: logs the
+    // result for human review, never retries or blocks delivery. Layout issues are
+    // code bugs in snapshot-pdf.tsx, not LLM-content issues a retry could fix.
+    if (snapshotEmailResult.status === 'fulfilled' && snapshotEmailResult.value.pdfBuffer) {
+      const pdfBuffer = snapshotEmailResult.value.pdfBuffer;
+      scoreVisualQuality(pdfBuffer)
+        .then((result) =>
+          getSupabase()
+            .from('audits')
+            .update({
+              visual_qa_score: result.score,
+              visual_qa_issues: result.issues,
+              visual_qa_verdict: result.verdict,
+            })
+            .eq('id', auditId)
+        )
+        .catch((err) => {
+          console.error('[visual qa] scoring failed:', err);
+        });
+    }
 
     const db = getSupabase();
     await db.from('leads').insert({

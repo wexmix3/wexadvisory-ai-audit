@@ -22,16 +22,19 @@ export async function sendSnapshotEmail(params: {
   totalAnnualSavings: number;
   resultsUrl: string;
   reportData: AuditReportData;
-}) {
+  pdfBuffer?: Buffer;
+}): Promise<{ pdfBuffer: Buffer | undefined }> {
   const { toEmail, toName, companyName, companyUrl, totalAnnualSavings, resultsUrl, reportData } = params;
   const firstName = toName.split(' ')[0] || toName;
   const savings = `$${(totalAnnualSavings / 1000).toFixed(0)}K`;
 
-  let pdfBuffer: Buffer | undefined;
-  try {
-    pdfBuffer = await generateSnapshotPDF(companyName, companyUrl, reportData);
-  } catch (err) {
-    console.error('[email] PDF generation failed — sending without attachment:', err);
+  let pdfBuffer: Buffer | undefined = params.pdfBuffer;
+  if (!pdfBuffer) {
+    try {
+      pdfBuffer = await generateSnapshotPDF(companyName, companyUrl, reportData);
+    } catch (err) {
+      console.error('[email] PDF generation failed — sending without attachment:', err);
+    }
   }
 
   const filename = `AI-Audit-${companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
@@ -98,6 +101,8 @@ export async function sendSnapshotEmail(params: {
 </body>
 </html>`,
   });
+
+  return { pdfBuffer };
 }
 
 export async function sendAdminNotification(params: {
