@@ -56,14 +56,17 @@ export async function POST(req: NextRequest) {
     // /api/audit/process responds 202 immediately, so this await is fast (network
     // latency only, not pipeline duration).
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/audit/process`, {
+      const triggerRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/audit/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-internal-secret': process.env.INTERNAL_API_SECRET || '',
+          'x-internal-secret': (process.env.INTERNAL_API_SECRET || '').trim(),
         },
         body: JSON.stringify({ auditId, intake }),
       });
+      if (!triggerRes.ok) {
+        throw new Error(`process route returned ${triggerRes.status}: ${await triggerRes.text()}`);
+      }
     } catch (triggerErr) {
       console.error('[snapshot] failed to trigger process job:', triggerErr);
       await db

@@ -15,7 +15,8 @@ export const maxDuration = 300;
 // without needing a queue service or a Vercel plan change.
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('x-internal-secret');
-  if (!secret || secret !== process.env.INTERNAL_API_SECRET) {
+  const expected = (process.env.INTERNAL_API_SECRET || '').trim();
+  if (!secret || !expected || secret !== expected) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

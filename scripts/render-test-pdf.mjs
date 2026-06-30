@@ -12,9 +12,7 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 const { data, error } = await db
   .from('audits')
   .select('company_name, company_url, report_data, created_at')
-  .ilike('company_name', '%25N%')
-  .order('created_at', { ascending: false })
-  .limit(1)
+  .eq('id', '28e59d0d-6e0e-4a17-a12b-789569d8cb90')
   .single();
 
 if (error || !data) {
