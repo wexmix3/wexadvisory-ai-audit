@@ -158,6 +158,12 @@ export interface ProposalContent {
   emailBody: string;
 }
 
+export interface DecompressedProblem {
+  realProblem: string;
+  keyAssumptions: string[];
+  proposalFraming: string;
+}
+
 export interface ProposalData {
   id: string;
   auditId: string;

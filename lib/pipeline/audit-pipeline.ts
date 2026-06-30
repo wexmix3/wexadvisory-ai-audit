@@ -42,7 +42,9 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
 
     const techSignals = detectTechFromContent(webContent + allSignalContent);
     const inferredDepartments = inferDepartmentsFromJobSignals(jobContent);
-    const manualProcessSignals = extractManualProcessSignals(jobContent + webContent);
+    const manualProcessSignals = extractManualProcessSignals(
+      jobContent + webContent + ' ' + intake.biggestChallenge
+    );
 
     await db.from('audits').update({
       web_content: pages,
@@ -120,6 +122,16 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       hasTrafficData: !!traffic,
     });
     reportData.scores = deterministicScores;
+
+    // Surface the dollar opportunity directly on the score card so it can't read as
+    // contradicting a moderate/low percentile score — the score reflects relative
+    // automation maturity vs. peers, not the absolute dollar ceiling.
+    const totalSavings = reportData.executiveSummary?.totalAnnualSavings ?? 0;
+    if (totalSavings > 0) {
+      reportData.scores.automationOpportunity.topFactors.push(
+        `Identified $${Math.round(totalSavings / 1000)}K/year in automatable opportunity regardless of relative score`
+      );
+    }
 
     // Store results
     await db.from('audits').update({

@@ -96,6 +96,11 @@ export function extractManualProcessSignals(content: string): string[] {
     { pattern: 'fax', signal: 'Legacy communication (fax)' },
     { pattern: 'manual invoice', signal: 'Manual invoicing' },
     { pattern: 'word document', signal: 'Manual document creation' },
+    { pattern: 'manually', signal: 'Self-reported manual operations' },
+    { pattern: 'by hand', signal: 'Self-reported manual operations' },
+    { pattern: 'manual process', signal: 'Self-reported manual operations' },
+    { pattern: 'lose track', signal: 'No systematic tracking — manual follow-up' },
+    { pattern: 'too long', signal: 'Self-reported slow manual workflow' },
   ];
 
   for (const { pattern, signal } of manualIndicators) {
@@ -104,5 +109,5 @@ export function extractManualProcessSignals(content: string): string[] {
     }
   }
 
-  return signals;
+  return [...new Set(signals)];
 }

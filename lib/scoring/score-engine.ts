@@ -53,16 +53,18 @@ export function computeScores(input: ScoringInput): AuditScores {
   const aiReadiness = clamp(aiReadinessRaw);
 
   // --- Automation Opportunity ---
-  // Higher manual signals = higher opportunity
-  const manualBonus = Math.min(manualProcessSignals.length * 8, 30);
+  // Higher manual signals = higher opportunity. Company-specific signals (manual + dept)
+  // outweigh the generic industry benchmark — a business with heavy manual signals
+  // shouldn't score low just because its industry average is low.
+  const manualBonus = Math.min(manualProcessSignals.length * 8, 35);
   const deptBonus = Math.min(classification.inferredDepartments.length * 5, 20);
   // Inverse of tech sophistication — less sophisticated = more opportunity
   const techOpportunityFactor = 100 - (TECH_SOPHISTICATION_SCORES[classification.techSophistication] ?? 38);
   const automationOpportunityRaw =
-    benchmark.avgAutomationOpportunity * 0.5 +
+    benchmark.avgAutomationOpportunity * 0.3 +
     techOpportunityFactor * 0.2 +
-    manualBonus * 0.2 +
-    deptBonus * 0.1;
+    manualBonus * 0.35 +
+    deptBonus * 0.15;
   const automationOpportunity = clamp(automationOpportunityRaw);
 
   // --- Data Visibility ---
@@ -143,7 +145,11 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(revenueAcceleration, benchmark.avgRevenueAcceleration),
       verdict:
         revenueAcceleration >= 65
-          ? 'Strong revenue acceleration potential — sales and marketing infrastructure ready to leverage AI.'
+          ? hasSales && hasMarketing
+            ? 'Strong revenue acceleration potential — sales and marketing infrastructure ready to leverage AI.'
+            : hasSales
+            ? 'Strong revenue acceleration potential — sales infrastructure ready to leverage AI; marketing infrastructure still needs to be built out.'
+            : 'Strong revenue acceleration potential — marketing infrastructure ready to leverage AI; sales infrastructure still needs to be built out.'
           : revenueAcceleration >= 45
           ? 'Moderate revenue opportunity — targeted AI investments could meaningfully improve top-line growth.'
           : 'Foundational revenue infrastructure gaps — address CRM and pipeline visibility first.',

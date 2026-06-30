@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AuditReportData, SnapshotIntake, ProposalContent } from '@/types/audit';
+import type { AuditReportData, SnapshotIntake, ProposalContent, DecompressedProblem } from '@/types/audit';
 
 let client: Anthropic | null = null;
 
@@ -57,6 +57,8 @@ function buildUserMessage(
   reportData: AuditReportData,
   trafficSummary: string,
   preparedDate: string,
+  decompressed?: DecompressedProblem | null,
+  industryContext?: string | null,
 ): string {
   const top3 = reportData.opportunities
     .slice(0, 3)
@@ -72,9 +74,25 @@ function buildUserMessage(
     )
     .join('\n\n');
 
+  const problemContext = decompressed
+    ? `PROBLEM ANALYSIS (use this to frame the proposal — address the real problem, not just the stated challenge):
+Real problem: ${decompressed.realProblem}
+Key assumptions to validate: ${decompressed.keyAssumptions.join(' / ')}
+Proposal opening framing: ${decompressed.proposalFraming}
+
+`
+    : '';
+
+  const industryBlock = industryContext
+    ? `INDUSTRY CONTEXT (use to strengthen urgency framing — reference these facts in the executiveSummary or emailBody):
+${industryContext}
+
+`
+    : '';
+
   return `PREPARED DATE: ${preparedDate}
 
-COMPANY: ${intake.companyName}
+${problemContext}${industryBlock}COMPANY: ${intake.companyName}
 URL: ${intake.companyUrl}
 CONTACT NAME: ${intake.contactName}
 INDUSTRY: ${intake.industry}
@@ -105,6 +123,8 @@ export async function generateProposalContent(
   intake: SnapshotIntake,
   reportData: AuditReportData,
   trafficSummary: string,
+  decompressed?: DecompressedProblem | null,
+  industryContext?: string | null,
 ): Promise<{ content: ProposalContent; inputTokens: number; outputTokens: number }> {
   const preparedDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
@@ -121,7 +141,7 @@ export async function generateProposalContent(
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: buildUserMessage(intake, reportData, trafficSummary, preparedDate),
+      content: buildUserMessage(intake, reportData, trafficSummary, preparedDate, decompressed, industryContext),
     }],
   });
 

@@ -48,8 +48,9 @@ ${input.jobSignals.slice(0, 2000)}
 
 Classify this business.`.trim();
 
+  const model = process.env.CLASSIFY_MODEL ?? 'claude-haiku-4-5-20251001';
   const message = await getClient().messages.create({
-    model: 'claude-sonnet-4-6',
+    model,
     max_tokens: 1024,
     temperature: 0,
     system: CLASSIFY_SYSTEM,

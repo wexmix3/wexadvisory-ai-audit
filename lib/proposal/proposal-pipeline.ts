@@ -1,5 +1,7 @@
 import { getSupabase } from '@/lib/supabase';
 import { generateProposalContent } from '@/lib/ai/generate-proposal';
+import { decompressIntake } from '@/lib/ai/decompress-intake';
+import { runIndustryResearch } from '@/lib/ai/industry-research';
 import { generateProposalPDF } from '@/lib/pdf/proposal-pdf';
 import { createGmailDraft } from '@/lib/gmail/create-draft';
 import type { AuditReportData, SnapshotIntake } from '@/types/audit';
@@ -135,11 +137,26 @@ export async function runProposalPipeline(
       sendBudgetAlert(mtdSpend).catch((e) => console.error('[proposal] budget alert failed:', e));
     }
 
+    // Run problem decomposition and industry research in parallel
+    const [decompressed, industryContext] = await Promise.all([
+      decompressIntake(intake),
+      runIndustryResearch(intake.industry, intake.biggestChallenge),
+    ]);
+
+    if (decompressed) {
+      console.log(`[proposal] problem decomposed for ${intake.companyName}: ${decompressed.realProblem}`);
+    }
+    if (industryContext) {
+      console.log(`[proposal] industry research complete for ${intake.industry}`);
+    }
+
     // Generate proposal content via Opus 4.8
     const { content, inputTokens, outputTokens } = await generateProposalContent(
       intake,
       reportData,
       trafficSummary,
+      decompressed,
+      industryContext,
     );
 
     const costUsd = estimateCost(inputTokens, outputTokens);

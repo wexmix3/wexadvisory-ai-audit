@@ -112,12 +112,12 @@ const s = StyleSheet.create({
   toolPillTxt: { color: '#1D4ED8', fontSize: 7 },
 
   // ── Roadmap ──────────────────────────────────────────────────
-  phaseCols:    { flexDirection: 'row', gap: 8 },
-  phaseBox:     { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, overflow: 'hidden' },
+  phaseCols:    { flexDirection: 'row', width: '100%', alignItems: 'flex-start' },
+  phaseBox:     { width: '32%', marginRight: '2%', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, overflow: 'hidden' },
   phaseHead:    { padding: '8 10', alignItems: 'center' },
   phaseTitle:   { color: WHITE, fontSize: 8.5, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
   phaseDur:     { color: 'rgba(255,255,255,0.7)', fontSize: 7.5, marginTop: 1 },
-  phaseBody:    { padding: '8 10', flex: 1 },
+  phaseBody:    { padding: '8 10' },
   phaseItem:    { marginBottom: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: LGRAY },
   phaseItemLast:{ marginBottom: 0, paddingBottom: 0, borderBottomWidth: 0 },
   phaseItemTtl: { color: NAVY, fontSize: 8, fontFamily: 'Helvetica-Bold', marginBottom: 1 },
@@ -385,7 +385,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
                     <Text style={s.mathFormula}>
                       {opp.hoursPerMonth} hrs/mo  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.fteCountAffected} FTE{opp.fteCountAffected !== 1 ? 's' : ''}  x  {opp.automationCeilingPct}% automation  x  12 months
                     </Text>
-                    <Text style={s.mathResult}>= {fmt(opp.annualSavings)} / year  ({opp.frequency})</Text>
+                    <Text style={s.mathResult}>= {fmt(opp.annualSavings)} / year</Text>
                     <Text style={s.mathNote}>
                       Annual labor cost at risk: {fmt(laborCost)}  |  {opp.automationCeilingPct}% can be automated
                     </Text>
@@ -443,8 +443,8 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
               [1, 'Quick Wins',  implementationRoadmap.phase1],
               [2, 'Foundation', implementationRoadmap.phase2],
               [3, 'Scale',      implementationRoadmap.phase3],
-            ] as [number, string, typeof implementationRoadmap.phase1][]).map(([num, label, phase]) => (
-              <View key={num} style={s.phaseBox}>
+            ] as [number, string, typeof implementationRoadmap.phase1][]).map(([num, label, phase], i) => (
+              <View key={num} style={i === 2 ? [s.phaseBox, { marginRight: 0 }] : s.phaseBox}>
                 <View style={[s.phaseHead, { backgroundColor: phaseColor(num) }]}>
                   <Text style={s.phaseTitle}>{label.toUpperCase()}</Text>
                   <Text style={s.phaseDur}>{phase.durationWeeks} weeks</Text>

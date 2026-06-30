@@ -29,6 +29,7 @@ CRITICAL RULES — violate these and the report is worthless:
 12. LIMIT dashboardRecommendations to EXACTLY 2 items maximum
 13. LIMIT competitiveInsights to EXACTLY 2 items maximum
 14. Keep all string fields concise — workflowDescription and opportunityDescription max 2 sentences each
+15. confidenceStatement MUST explicitly bridge the client's own words to what you found — format: "You told us [paraphrase of their stated biggest challenge]. We found [specific corroborating or clarifying finding from the research]." Do not write a generic confidence statement that ignores their stated challenge.
 
 Output ONLY valid JSON matching this exact schema. No markdown fences, no preamble:
 
@@ -39,7 +40,7 @@ Output ONLY valid JSON matching this exact schema. No markdown fences, no preamb
     "quickWinSavings": 45000,
     "topOpportunity": "string — one specific sentence naming the #1 opportunity and its savings",
     "urgencyNote": "string — specific competitive pressure or cost of delay (name competitor type or market trend)",
-    "confidenceStatement": "string — e.g. 'Based on website content, job signals, and industry benchmarks for 25-person professional services firms'"
+    "confidenceStatement": "string — MUST follow the 'You told us X. We found Y.' bridge format from rule 15, e.g. 'You told us scheduling and client follow-up eat your team's time. We found no CRM or scheduling automation in place, consistent with that — confirmed against website content, job signals, and industry benchmarks for 25-person professional services firms.'"
   },
   "companySnapshot": {
     "inferredModel": "string",
@@ -408,7 +409,7 @@ async function runSynthesisWithRetry(
       );
     }
 
-    const model = process.env.AUDIT_MODEL ?? 'claude-sonnet-4-6';
+    const model = (process.env.AUDIT_MODEL ?? 'claude-sonnet-4-6').trim();
 
     const message = await getClient().messages.create({
       model,
