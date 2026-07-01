@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import { Check } from 'lucide-react';
 import type { AuditScores } from '@/types/audit';
 
 type Status = 'pending' | 'researching' | 'analyzing' | 'generating' | 'complete' | 'failed';
@@ -228,7 +229,7 @@ export default function ResultsPage() {
                   'Priority quick wins (implement in <4 weeks)',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-slate-300 text-sm">
-                    <span className="text-[#C8A84B] mt-0.5">✓</span>
+                    <Check className="w-4 h-4 text-[#C8A84B] mt-0.5 flex-shrink-0" />
                     {item}
                   </div>
                 ))}

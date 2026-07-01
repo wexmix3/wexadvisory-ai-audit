@@ -1,4 +1,6 @@
+import React from 'react';
 import Link from 'next/link';
+import { BarChart2, DollarSign, Target, Map } from 'lucide-react';
 
 const SCORE_EXAMPLES = [
   { label: 'AI Readiness', score: 42, color: '#C8A84B' },
@@ -8,11 +10,11 @@ const SCORE_EXAMPLES = [
   { label: 'Overall Maturity', score: 49, color: '#C8A84B' },
 ];
 
-const WHAT_YOU_GET = [
-  { icon: '📊', title: '5 AI Maturity Scores', desc: 'Benchmarked against your industry — AI Readiness, Automation Opportunity, Data Visibility, Revenue Acceleration, Overall Maturity' },
-  { icon: '💰', title: 'Estimated Annual Savings', desc: 'Every opportunity backed by labor math: hours × hourly rate × automation ceiling — no generic guesses' },
-  { icon: '🎯', title: 'Prioritized Quick Wins', desc: 'Opportunities ranked by ROI with implementation complexity and specific tool recommendations' },
-  { icon: '🗺️', title: 'Implementation Roadmap', desc: 'Phase 1 (quick wins), Phase 2 (foundation), Phase 3 (scale) — realistic timelines and cost estimates' },
+const WHAT_YOU_GET: { icon: React.ReactNode; title: string; desc: string }[] = [
+  { icon: <BarChart2 className="w-6 h-6 text-[#C8A84B]" />, title: '5 AI Maturity Scores', desc: 'Benchmarked against your industry — AI Readiness, Automation Opportunity, Data Visibility, Revenue Acceleration, Overall Maturity' },
+  { icon: <DollarSign className="w-6 h-6 text-[#C8A84B]" />, title: 'Estimated Annual Savings', desc: 'Every opportunity backed by labor math: hours × hourly rate × automation ceiling — no generic guesses' },
+  { icon: <Target className="w-6 h-6 text-[#C8A84B]" />, title: 'Prioritized Quick Wins', desc: 'Opportunities ranked by ROI with implementation complexity and specific tool recommendations' },
+  { icon: <Map className="w-6 h-6 text-[#C8A84B]" />, title: 'Implementation Roadmap', desc: 'Phase 1 (quick wins), Phase 2 (foundation), Phase 3 (scale) — realistic timelines and cost estimates' },
 ];
 
 const INDUSTRIES = [
@@ -112,7 +114,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {WHAT_YOU_GET.map(({ icon, title, desc }) => (
               <div key={title} className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
-                <div className="text-2xl mb-3">{icon}</div>
+                <div className="mb-3">{icon}</div>
                 <h3 className="text-white font-semibold mb-2">{title}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
               </div>
