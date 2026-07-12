@@ -13,7 +13,8 @@ export default defineConfig({
   expect: {
     // Real report content (dollar amounts, scores) varies run to run, so visual
     // baselines target static/loading UI states, not generated numbers.
-    toHaveScreenshot: { maxDiffPixelRatio: 0.02 },
+    // animations: 'disabled' stops CSS spinners/pulses from causing false diffs.
+    toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: 'disabled' },
   },
   use: {
     baseURL,
