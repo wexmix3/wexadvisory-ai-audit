@@ -1,5 +1,0 @@
-model: anthropic/claude-sonnet-4-6
-auto-commits: true
-yes-always: true
-gitignore: true
-watch-files: false
