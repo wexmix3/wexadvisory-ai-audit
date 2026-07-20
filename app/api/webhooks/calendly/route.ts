@@ -53,12 +53,22 @@ export async function POST(req: NextRequest) {
   const eventUri = (invitee?.['scheduled_event'] as Record<string, unknown> | undefined)?.['uri'] as string | undefined;
   const bookedAt = payload['created_at'] as string | undefined;
 
-  if (!email) {
-    console.warn('[calendly-webhook] no email in payload');
-    return NextResponse.json({ received: true, action: 'no_email' });
+  const db = getSupabase();
+
+  async function logFailure(errorMessage: string) {
+    await db.from('webhook_failures').insert({
+      source: 'calendly',
+      event_type: payload['event'] as string | undefined,
+      payload,
+      error_message: errorMessage,
+    });
   }
 
-  const db = getSupabase();
+  if (!email) {
+    console.warn('[calendly-webhook] no email in payload');
+    await logFailure('no email in invitee.created payload');
+    return NextResponse.json({ received: true, action: 'no_email' });
+  }
 
   // Find the most recent completed audit for this email
   const { data: audit, error } = await db
@@ -73,6 +83,7 @@ export async function POST(req: NextRequest) {
   if (error || !audit) {
     // No matching audit — still return 200 so Calendly doesn't retry
     console.warn(`[calendly-webhook] no completed audit found for ${email}`);
+    await logFailure(`no completed audit found for ${email}: ${error?.message ?? 'not found'}`);
     return NextResponse.json({ received: true, action: 'no_audit_match' });
   }
 
@@ -93,6 +104,7 @@ export async function POST(req: NextRequest) {
   if (updateError) {
     console.error('[calendly-webhook] update failed:', updateError.message);
     // Return 200 anyway — Calendly retries are unhelpful if this is a DB issue
+    await logFailure(`booked_call update failed for audit ${audit.id}: ${updateError.message}`);
     return NextResponse.json({ received: true, action: 'update_failed' });
   }
 

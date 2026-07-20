@@ -651,8 +651,15 @@ async function runSynthesisWithRetry(
 
 const MAX_QUALITY_TURNS = 1;
 
-export async function synthesizeAudit(input: SynthesisInput): Promise<AuditReportData> {
+export interface SynthesisResult {
+  data: AuditReportData;
+  qualityRetryUsed: boolean;
+  preRetryIssues: string[];
+}
+
+export async function synthesizeAudit(input: SynthesisInput): Promise<SynthesisResult> {
   let qualityFeedback = '';
+  let preRetryIssues: string[] = [];
 
   for (let qualityTurn = 0; qualityTurn <= MAX_QUALITY_TURNS; qualityTurn++) {
     const result = await runSynthesisWithRetry(input, qualityFeedback, qualityTurn > 0);
@@ -662,17 +669,18 @@ export async function synthesizeAudit(input: SynthesisInput): Promise<AuditRepor
       if (qualityTurn > 0) {
         console.log(`[quality-loop] passed on quality turn ${qualityTurn + 1}`);
       }
-      return result;
+      return { data: result, qualityRetryUsed: qualityTurn > 0, preRetryIssues };
     }
 
     if (qualityTurn === MAX_QUALITY_TURNS) {
       console.warn(
         `[quality-loop] returning best result after ${MAX_QUALITY_TURNS + 1} quality turn(s) — issues: ${quality.issues.join('; ')}`,
       );
-      return result;
+      return { data: result, qualityRetryUsed: qualityTurn > 0, preRetryIssues };
     }
 
     console.warn(`[quality-loop] turn ${qualityTurn + 1} failed: ${quality.issues.join('; ')}`);
+    preRetryIssues = quality.issues;
     qualityFeedback = buildQualityFeedback(quality, qualityTurn + 1);
   }
 

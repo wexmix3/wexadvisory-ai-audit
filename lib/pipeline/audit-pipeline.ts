@@ -83,7 +83,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       ? `Monthly organic traffic: ~${traffic.monthlyTraffic?.toLocaleString() ?? 'unknown'} visits, ${traffic.organicKeywords?.toLocaleString() ?? 'unknown'} keywords ranked`
       : '';
 
-    const reportData = await synthesizeAudit({
+    const { data: reportData, qualityRetryUsed, preRetryIssues } = await synthesizeAudit({
       intake,
       classification,
       webContent,
@@ -110,6 +110,8 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       opportunity_count: reportData.opportunities?.length ?? 0,
       total_annual_savings: reportData.executiveSummary?.totalAnnualSavings ?? 0,
       has_quick_wins: (reportData.opportunities ?? []).some(o => o.quickWin),
+      quality_retry_used: qualityRetryUsed,
+      pre_retry_issues: preRetryIssues,
     };
 
     // Override Claude's scores with the deterministic score engine for consistency
