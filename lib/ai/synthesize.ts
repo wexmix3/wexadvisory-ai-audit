@@ -471,14 +471,11 @@ export async function scoreAuditQualityLLM(
       workflow: o.workflowDescription?.slice(0, 100),
     }));
 
-    const prompt = `You are evaluating an AI audit report produced for ${companyName}.
-
-Top opportunities:
-${opps.map((o, i) => `${i + 1}. ${o.title} — tools: ${o.tools} — savings: $${o.savings?.toLocaleString()} — workflow: ${o.workflow}`).join('\n')}
-
-Total annual savings: $${data.executiveSummary?.totalAnnualSavings?.toLocaleString()}
-Opportunities: ${data.opportunities?.length ?? 0}
-Quick wins: ${data.opportunities?.filter(o => o.quickWin).length ?? 0}
+    // Static rubric, identical for every audit scored — split out so it's
+    // cacheable, matching the pattern the main synthesis call below already
+    // uses. Marginal within a single audit (called once, no loop), but real
+    // whenever two audits are scored within the 5-min cache TTL.
+    const scoringSystemPrompt = `You evaluate the quality of an AI opportunity audit report.
 
 Score overall audit quality 1–5:
 5 = Specific workflows, named tools with pricing, quantified savings with clear math
@@ -489,9 +486,19 @@ Score overall audit quality 1–5:
 
 Respond ONLY with JSON: {"score": <1-5>, "reasoning": "<one sentence>"}`;
 
+    const prompt = `You are evaluating an AI audit report produced for ${companyName}.
+
+Top opportunities:
+${opps.map((o, i) => `${i + 1}. ${o.title} — tools: ${o.tools} — savings: $${o.savings?.toLocaleString()} — workflow: ${o.workflow}`).join('\n')}
+
+Total annual savings: $${data.executiveSummary?.totalAnnualSavings?.toLocaleString()}
+Opportunities: ${data.opportunities?.length ?? 0}
+Quick wins: ${data.opportunities?.filter(o => o.quickWin).length ?? 0}`;
+
     const message = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
+      system: [{ type: 'text', text: scoringSystemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: prompt }],
     });
 
