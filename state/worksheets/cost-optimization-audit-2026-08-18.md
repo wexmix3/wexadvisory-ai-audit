@@ -21,3 +21,8 @@ Follow-up to Anthropic's Cost Optimization cookbook deep-dive (ingested via X In
 
 ## Commit
 Not yet committed — see final session report for the commit/tag, or `git log` in this repo if read after that point.
+
+## CORRECTION (2026-08-18, later same day)
+Checked block size against Anthropic's minimum cacheable prefix length after live-testing the same pattern in outreach-tool and finding it silently no-ops. `scoringSystemPrompt` (the rubric split out of `scoreAuditQualityLLM`) is ~119 tokens, vs. Haiku's 2048-token minimum.
+
+**Correct status: this fix produces zero measurable cost savings today.** By contrast, the pre-existing `SYSTEM_PROMPT` cache on the main synthesis call (not something this audit added — it was already correctly implemented) is ~1762 tokens, above Sonnet's 1024-token minimum, and is a genuine, working cache. That one remains a real win; the `scoreAuditQualityLLM` change added this session is not. Harmless, correctly structured for the future, not an active win — this correction supersedes the original worksheet's claim above.
