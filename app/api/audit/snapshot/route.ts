@@ -16,6 +16,8 @@ export async function POST(req: NextRequest) {
       biggestChallenge: (body.biggestChallenge || '').trim(),
       contactName: (body.contactName || '').trim(),
       contactEmail: (body.contactEmail || '').trim().toLowerCase(),
+      utmSource: (body.utmSource || '').trim(),
+      prospectId: (body.prospectId || '').trim(),
     };
 
     if (!intake.companyUrl || !intake.contactEmail) {

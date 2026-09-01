@@ -62,6 +62,7 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         topOpportunity: reportData.executiveSummary.topOpportunity,
         auditId,
         resultsUrl,
+        source: intake.utmSource || undefined,
       }),
     ]);
 
@@ -97,7 +98,9 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       annual_savings_estimate: reportData.executiveSummary.totalAnnualSavings,
       lead_score: reportData.scores.overallMaturity.score,
       status: 'new',
-      source: 'audit',
+      // Falls back to 'audit' for organic/direct traffic — utmSource is only set
+      // when the visitor arrived via a tracked link (e.g. 'coldoutreach').
+      source: intake.utmSource || 'audit',
     });
 
     await getSupabase()

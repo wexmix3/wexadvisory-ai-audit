@@ -116,16 +116,19 @@ export async function sendAdminNotification(params: {
   topOpportunity: string;
   auditId: string;
   resultsUrl: string;
+  source?: string;
 }) {
   const {
     companyName, contactName, contactEmail, industry, employeeRange,
-    totalAnnualSavings, aiReadinessScore, topOpportunity, resultsUrl,
+    totalAnnualSavings, aiReadinessScore, topOpportunity, resultsUrl, source,
   } = params;
+
+  const isTrackedSource = !!source && source !== 'audit';
 
   await getClient().emails.send({
     from: 'Wex AI Audit <audit@wexadvisory.com>',
     to: 'maxwexley@wexadvisory.com',
-    subject: `New Lead: ${companyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified`,
+    subject: `New Lead: ${companyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>
@@ -136,6 +139,7 @@ export async function sendAdminNotification(params: {
     <tr><td style="padding: 6px 0; color: #6b7280;">Email</td><td><a href="mailto:${contactEmail}" style="color: #C8A84B;">${contactEmail}</a></td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Industry</td><td style="color: #111827;">${industry}</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Size</td><td style="color: #111827;">${employeeRange} employees</td></tr>
+    ${isTrackedSource ? `<tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Source</td><td style="color: #C8A84B; font-weight: 700;">${source}</td></tr>` : ''}
     <tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Est. Savings</td><td style="color: #059669; font-weight: 700; font-size: 18px;">$${totalAnnualSavings.toLocaleString()}/year</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">AI Readiness</td><td style="color: #111827;">${aiReadinessScore}/100</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Top Opportunity</td><td style="color: #111827;">${topOpportunity}</td></tr>

@@ -12,6 +12,10 @@ export interface SnapshotIntake {
   biggestChallenge: string;
   contactName: string;
   contactEmail: string;
+  /** Traffic source, e.g. "coldoutreach" — captured from ?utm_source= on landing. Blank for organic/direct. */
+  utmSource?: string;
+  /** Outreach-tool prospect id, from ?pid= — lets a completed audit be joined back to the exact send. */
+  prospectId?: string;
 }
 
 export interface BusinessClassification {

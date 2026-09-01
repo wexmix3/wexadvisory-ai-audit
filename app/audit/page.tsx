@@ -3,6 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+// Read directly off window.location instead of next/navigation's useSearchParams —
+// that hook forces this page into a <Suspense> boundary at build time for a value
+// we only need once, client-side, for attribution. Not relevant to first paint.
+function readTrackingParams() {
+  if (typeof window === 'undefined') return { utmSource: '', prospectId: '' };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    utmSource: params.get('utm_source') || '',
+    prospectId: params.get('pid') || '',
+  };
+}
+
 const INDUSTRIES = [
   'Professional Services',
   'SaaS / Technology',
@@ -33,6 +45,7 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [tracking] = useState(readTrackingParams);
   const [form, setForm] = useState({
     companyUrl: '',
     companyName: '',
@@ -79,7 +92,7 @@ export default function AuditPage() {
       const res = await fetch('/api/audit/snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, utmSource: tracking.utmSource, prospectId: tracking.prospectId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to start audit');
