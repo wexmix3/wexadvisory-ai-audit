@@ -66,10 +66,12 @@ export async function scoreVisualQuality(pdfBuffer: Buffer): Promise<VisualQaRes
   const images = await rasterizePdf(pdfBuffer);
 
   const model = process.env.VISUAL_QA_MODEL ?? 'claude-haiku-4-5-20251001';
+  // temperature is rejected outright (400) on Opus/Sonnet 4.6+ and Opus 5 —
+  // dropped so VISUAL_QA_MODEL can be pointed at any current model without
+  // this call breaking. See the same fix in lib/ai/classify.ts.
   const message = await getClient().messages.create({
     model,
     max_tokens: 1024,
-    temperature: 0,
     system: VISUAL_QA_SYSTEM,
     messages: [
       {

@@ -78,10 +78,14 @@ ${input.jobSignals.slice(0, 2000)}
 Classify this business.`.trim();
 
   const model = process.env.CLASSIFY_MODEL ?? 'claude-haiku-4-5-20251001';
+  // temperature is rejected outright (400) on Opus/Sonnet 4.6+ and Opus 5 —
+  // dropped so CLASSIFY_MODEL can be pointed at any current model without
+  // this call breaking. Haiku 4.5 (the default) still tolerated it, which is
+  // why this went unnoticed until the same param broke the synthesis call on
+  // 2026-09-02.
   const message = await getClient().messages.create({
     model,
     max_tokens: 1024,
-    temperature: 0,
     system: CLASSIFY_SYSTEM,
     output_config: { format: { type: 'json_schema', schema: CLASSIFY_SCHEMA } },
     messages: [{ role: 'user', content: userMessage }],
