@@ -13,6 +13,21 @@ function getClient() {
   return client;
 }
 
+// companyName can originate from scraped website content (a page <title>, an
+// og:site_name), not just typed form input. A stray BOM or control character
+// surviving into it and then into an email subject caused a real production
+// crash (Headers/fetch reject non-Latin1 header values as a ByteString type
+// error) on 2026-05-27. Strip anything that shouldn't be in a subject line
+// anyway; leave real Unicode (accented names, etc.) untouched.
+const HEADER_UNSAFE_CHARS = new RegExp(
+  '[\\u0000-\\u001F\\u007F\\u200B-\\u200F\\uFEFF]',
+  'g'
+);
+
+function sanitizeForHeader(s: string): string {
+  return s.replace(HEADER_UNSAFE_CHARS, '').trim();
+}
+
 export async function sendSnapshotEmail(params: {
   toEmail: string;
   toName: string;
@@ -27,6 +42,7 @@ export async function sendSnapshotEmail(params: {
   const { toEmail, toName, companyName, companyUrl, totalAnnualSavings, resultsUrl, reportData } = params;
   const firstName = toName.split(' ')[0] || toName;
   const savings = `$${(totalAnnualSavings / 1000).toFixed(0)}K`;
+  const subjectSafeCompanyName = sanitizeForHeader(companyName);
 
   let pdfBuffer: Buffer | undefined = params.pdfBuffer;
   if (!pdfBuffer) {
@@ -42,7 +58,7 @@ export async function sendSnapshotEmail(params: {
   await getClient().emails.send({
     from: 'Wex Advisory <audit@wexadvisory.com>',
     to: toEmail,
-    subject: `Your AI Opportunity Snapshot for ${companyName} is ready`,
+    subject: `Your AI Opportunity Snapshot for ${subjectSafeCompanyName} is ready`,
     attachments: pdfBuffer
       ? [{ filename, content: pdfBuffer.toString('base64') }]
       : undefined,
@@ -124,11 +140,12 @@ export async function sendAdminNotification(params: {
   } = params;
 
   const isTrackedSource = !!source && source !== 'audit';
+  const subjectSafeCompanyName = sanitizeForHeader(companyName);
 
   await getClient().emails.send({
     from: 'Wex AI Audit <audit@wexadvisory.com>',
     to: 'maxwexley@wexadvisory.com',
-    subject: `New Lead: ${companyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
+    subject: `New Lead: ${subjectSafeCompanyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>

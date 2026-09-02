@@ -89,7 +89,16 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
     }
 
     const db = getSupabase();
-    await db.from('leads').insert({
+    // prospect_id is a uuid column with an FK to prospects(id). An empty string
+    // or malformed token would fail the insert outright — shape-check before
+    // trusting it. A well-formed but stale/nonexistent id (deleted prospect,
+    // hand-typed pid) still trips the FK constraint at insert time, so the
+    // insert itself falls back to dropping prospect_id rather than losing the
+    // whole lead over an attribution field. Either way lead capture — the
+    // business-critical part — must not go down over a tracking token.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const prospectId = intake.prospectId && UUID_RE.test(intake.prospectId) ? intake.prospectId : null;
+    const leadBase = {
       audit_id: auditId,
       email: intake.contactEmail,
       company: intake.companyName,
@@ -101,7 +110,15 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       // Falls back to 'audit' for organic/direct traffic — utmSource is only set
       // when the visitor arrived via a tracked link (e.g. 'coldoutreach').
       source: intake.utmSource || 'audit',
-    });
+    };
+    const { error: leadInsertErr } = await db
+      .from('leads')
+      .insert({ ...leadBase, prospect_id: prospectId });
+    if (leadInsertErr) {
+      console.error('[leads] insert with prospect_id failed, retrying without it:', leadInsertErr);
+      const { error: retryErr } = await db.from('leads').insert(leadBase);
+      if (retryErr) console.error('[leads] insert failed even without prospect_id:', retryErr);
+    }
 
     await getSupabase()
       .from('audits')

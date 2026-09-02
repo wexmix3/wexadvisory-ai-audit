@@ -607,7 +607,11 @@ async function runSynthesisWithRetry(
       );
     }
 
-    const model = (process.env.AUDIT_MODEL ?? 'claude-sonnet-4-6').trim();
+    // Fallback matches the value AUDIT_MODEL is actually set to in production
+    // today, so losing the env var degrades to identical behavior instead of
+    // 404ing — 'claude-sonnet-4-6' (the old fallback) isn't a real model and
+    // caused the 2026-06-30 production failure.
+    const model = (process.env.AUDIT_MODEL ?? 'claude-opus-4-8').trim();
 
     const message = await getClient().messages.create({
       model,
