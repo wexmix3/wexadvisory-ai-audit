@@ -7,11 +7,12 @@ import { useRouter } from 'next/navigation';
 // that hook forces this page into a <Suspense> boundary at build time for a value
 // we only need once, client-side, for attribution. Not relevant to first paint.
 function readTrackingParams() {
-  if (typeof window === 'undefined') return { utmSource: '', prospectId: '' };
+  if (typeof window === 'undefined') return { utmSource: '', prospectId: '', prefillUrl: '' };
   const params = new URLSearchParams(window.location.search);
   return {
     utmSource: params.get('utm_source') || '',
     prospectId: params.get('pid') || '',
+    prefillUrl: params.get('url') || '',
   };
 }
 
@@ -46,15 +47,15 @@ export default function AuditPage() {
   const [error, setError] = useState('');
 
   const [tracking] = useState(readTrackingParams);
-  const [form, setForm] = useState({
-    companyUrl: '',
+  const [form, setForm] = useState(() => ({
+    companyUrl: readTrackingParams().prefillUrl,
     companyName: '',
     industry: '',
     employeeRange: '11-50',
     biggestChallenge: '',
     contactName: '',
     contactEmail: '',
-  });
+  }));
 
   function update(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
