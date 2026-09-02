@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { runAuditPipeline } from '@/lib/pipeline/audit-pipeline';
-import { sendSnapshotEmail, sendAdminNotification } from '@/lib/email/resend';
+import { sendSnapshotEmail, sendAdminNotification } from '@/lib/email/brevo';
 import { runProposalPipeline } from '@/lib/proposal/proposal-pipeline';
 import { scoreVisualQuality } from '@/lib/pdf/visual-qa';
 import type { SnapshotIntake } from '@/types/audit';

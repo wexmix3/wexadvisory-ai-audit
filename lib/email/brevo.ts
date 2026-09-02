@@ -1,24 +1,23 @@
-import { Resend } from 'resend';
 import type { AuditReportData } from '@/types/audit';
 import { generateSnapshotPDF } from '@/lib/pdf/snapshot-pdf';
 
-let client: Resend | null = null;
-
-function getClient() {
-  if (!client) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) throw new Error('RESEND_API_KEY is not set');
-    client = new Resend(key);
-  }
-  return client;
-}
+// Sends via Brevo instead of Resend. wexadvisory.com (root) is added to the
+// account but not yet DNS-verified there; send.wexadvisory.com IS verified
+// and authenticated (same domain/account cold outreach already sends from,
+// confirmed landing) — audit@send.wexadvisory.com rides that proven
+// reputation rather than waiting on root-domain verification. Swap FROM_*
+// below to @wexadvisory.com once that domain shows authenticated: true at
+// GET https://api.brevo.com/v3/senders/domains.
+const FROM_EMAIL = 'audit@send.wexadvisory.com';
+const REPLY_TO_EMAIL = 'maxwexley@wexadvisory.com';
 
 // companyName can originate from scraped website content (a page <title>, an
 // og:site_name), not just typed form input. A stray BOM or control character
-// surviving into it and then into an email subject caused a real production
-// crash (Headers/fetch reject non-Latin1 header values as a ByteString type
-// error) on 2026-05-27. Strip anything that shouldn't be in a subject line
-// anyway; leave real Unicode (accented names, etc.) untouched.
+// surviving into it caused a real production crash under the old Resend/fetch
+// path (Headers reject non-Latin1 header values as a ByteString type error)
+// on 2026-05-27. Brevo's subject travels in a JSON body, not a raw HTTP
+// header, so that specific crash doesn't reproduce here — kept anyway, since
+// control characters don't belong in a subject line under any transport.
 const HEADER_UNSAFE_CHARS = new RegExp(
   '[\\u0000-\\u001F\\u007F\\u200B-\\u200F\\uFEFF]',
   'g'
@@ -26,6 +25,38 @@ const HEADER_UNSAFE_CHARS = new RegExp(
 
 function sanitizeForHeader(s: string): string {
   return s.replace(HEADER_UNSAFE_CHARS, '').trim();
+}
+
+async function sendViaBrevo(payload: {
+  senderName: string;
+  toEmail: string;
+  toName?: string;
+  replyToEmail?: string;
+  subject: string;
+  html: string;
+  attachment?: { name: string; content: string }[];
+  headers?: Record<string, string>;
+}): Promise<string | null> {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error('BREVO_API_KEY is not set');
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: payload.senderName, email: FROM_EMAIL },
+      to: [{ email: payload.toEmail, name: payload.toName }],
+      replyTo: { email: payload.replyToEmail ?? REPLY_TO_EMAIL },
+      subject: payload.subject,
+      htmlContent: payload.html,
+      attachment: payload.attachment,
+      headers: payload.headers,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? `Brevo error (${res.status})`);
+  return data.messageId ?? null;
 }
 
 export async function sendSnapshotEmail(params: {
@@ -55,13 +86,12 @@ export async function sendSnapshotEmail(params: {
 
   const filename = `AI-Audit-${companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
 
-  await getClient().emails.send({
-    from: 'Wex Advisory <audit@wexadvisory.com>',
-    to: toEmail,
+  await sendViaBrevo({
+    senderName: 'Wex Advisory',
+    toEmail,
+    toName,
     subject: `Your AI Opportunity Snapshot for ${subjectSafeCompanyName} is ready`,
-    attachments: pdfBuffer
-      ? [{ filename, content: pdfBuffer.toString('base64') }]
-      : undefined,
+    attachment: pdfBuffer ? [{ name: filename, content: pdfBuffer.toString('base64') }] : undefined,
     html: `
 <!DOCTYPE html>
 <html>
@@ -142,9 +172,9 @@ export async function sendAdminNotification(params: {
   const isTrackedSource = !!source && source !== 'audit';
   const subjectSafeCompanyName = sanitizeForHeader(companyName);
 
-  await getClient().emails.send({
-    from: 'Wex AI Audit <audit@wexadvisory.com>',
-    to: 'maxwexley@wexadvisory.com',
+  await sendViaBrevo({
+    senderName: 'Wex AI Audit',
+    toEmail: 'maxwexley@wexadvisory.com',
     subject: `New Lead: ${subjectSafeCompanyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
