@@ -66,26 +66,34 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       }),
     ]);
 
-    // Visual QA: fire and forget — rasterizes the same PDF buffer just emailed and
-    // scores layout/whitespace via a vision model. Observability only: logs the
-    // result for human review, never retries or blocks delivery. Layout issues are
-    // code bugs in snapshot-pdf.tsx, not LLM-content issues a retry could fix.
+    // Visual QA: runs after email delivery so it never blocks or delays the send —
+    // but it IS awaited (not detached) because after()'s waitUntil only extends the
+    // invocation's lifetime for the promise this whole function returns. A detached
+    // .then()/.catch() chain here is not part of that promise, so Vercel can freeze
+    // the container the instant runAuditPipelineAsync resolves, killing this mid-flight
+    // (this is exactly what silently broke visual QA on every audit — confirmed via
+    // live logs 2026-09-02: the rasterizer's own console warnings would fire, but the
+    // Anthropic call + DB update never got to run). Observability only: never retries,
+    // and a failure here must never throw out of runAuditPipelineAsync — layout issues
+    // are code bugs in snapshot-pdf.tsx, not LLM-content issues a retry could fix.
     if (snapshotEmailResult.status === 'fulfilled' && snapshotEmailResult.value.pdfBuffer) {
       const pdfBuffer = snapshotEmailResult.value.pdfBuffer;
-      scoreVisualQuality(pdfBuffer)
-        .then((result) =>
-          getSupabase()
-            .from('audits')
-            .update({
-              visual_qa_score: result.score,
-              visual_qa_issues: result.issues,
-              visual_qa_verdict: result.verdict,
-            })
-            .eq('id', auditId)
-        )
-        .catch((err) => {
-          console.error('[visual qa] scoring failed:', err);
-        });
+      try {
+        const result = await scoreVisualQuality(pdfBuffer);
+        const { error: visualQaErr } = await getSupabase()
+          .from('audits')
+          .update({
+            visual_qa_score: result.score,
+            visual_qa_issues: result.issues,
+            visual_qa_verdict: result.verdict,
+          })
+          .eq('id', auditId);
+        if (visualQaErr) {
+          console.error('[visual qa] failed to persist result:', visualQaErr);
+        }
+      } catch (err) {
+        console.error('[visual qa] scoring failed:', err);
+      }
     }
 
     const db = getSupabase();
