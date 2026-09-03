@@ -24,7 +24,10 @@ const RED    = '#EF4444';
 
 const s = StyleSheet.create({
   // ── Base pages ──────────────────────────────────────────────
-  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingBottom: 44, justifyContent: 'center' },
+  // paddingTop on the Page (not on each section) so react-pdf applies it to
+  // auto-generated continuation pages too. No justifyContent: content must be
+  // top-anchored — 'center' produced blank bands above short pages.
+  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingTop: 36, paddingBottom: 44 },
   coverPage: { backgroundColor: NAVY, fontFamily: 'Helvetica' },
 
   // ── Cover ───────────────────────────────────────────────────
@@ -53,8 +56,8 @@ const s = StyleSheet.create({
   coverFooterTxt:  { color: MGRAY, fontSize: 8.5 },
 
   // ── Shared layout ────────────────────────────────────────────
-  sec:      { padding: '36 40 0 40' },
-  secLast:  { padding: '32 40 28 40' },
+  sec:      { padding: '0 40' },
+  secLast:  { padding: '0 40 28 40' },
   eyebrow:  { color: GOLD, fontSize: 8, letterSpacing: 2, marginBottom: 4 },
   heading:  { color: NAVY, fontSize: 17, fontFamily: 'Helvetica-Bold', marginBottom: 14 },
   divider:  { height: 1, backgroundColor: LGRAY, margin: '16 40' },
@@ -345,15 +348,17 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
   const { executiveSummary, scores, opportunities, implementationRoadmap, nextSteps } = report;
   const top3 = opportunities.slice(0, 3);
 
-  // Explicit pagination — 2 opportunity cards per page, rather than letting
-  // react-pdf's auto-flow decide. Auto-flow could leave a lone card on its
-  // own page with most of the page blank below it; chunking ourselves lets
-  // us fill that blank space with the roadmap instead of leaving it empty.
+  // Explicit pagination — 2 opportunity cards per page, then the roadmap and
+  // next steps always start a fresh page. An earlier version folded the
+  // roadmap onto the last opportunities page whenever that page held a lone
+  // card; the roadmap's height depends on LLM output, and when it didn't fit
+  // react-pdf split the 3-column row mid-column, leaving one column's totals
+  // alone on an otherwise blank page. Folding only moves the tail whitespace
+  // between pages anyway, so the deterministic layout wins.
   const oppPages: typeof opportunities[] = [];
   for (let i = 0; i < opportunities.length; i += 2) {
     oppPages.push(opportunities.slice(i, i + 2));
   }
-  const lastPageIsSingle = oppPages.length > 0 && oppPages[oppPages.length - 1].length === 1;
 
   return (
     <Document
@@ -384,7 +389,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
           {/* Top 3 opportunities preview */}
           {top3.length > 0 && (
-            <View>
+            <View style={{ marginTop: 'auto' }}>
               <Text style={s.coverOppsLabel}>TOP OPPORTUNITIES IDENTIFIED</Text>
               {top3.map((opp, i) => (
                 <View key={opp.id} style={s.coverOppRow}>
@@ -496,8 +501,6 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
       {/* ── PAGES 4+: OPPORTUNITIES (explicit pagination — 2 per page) ── */}
       {oppPages.map((group, pageIdx) => {
-        const isLastOppPage = pageIdx === oppPages.length - 1;
-        const showRoadmapHere = isLastOppPage && lastPageIsSingle;
         return (
           <Page size="A4" style={s.page} key={pageIdx}>
             <View style={s.sec}>
@@ -508,43 +511,27 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
               ))}
             </View>
 
-            {showRoadmapHere && (
-              <>
-                <View style={s.divider} />
-                <View style={s.sec}>
-                  <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
-                  <Text style={s.heading}>Your 3-Phase Roadmap</Text>
-                  <Roadmap implementationRoadmap={implementationRoadmap} />
-                </View>
-              </>
-            )}
-
             <Footer company={companyName} />
           </Page>
         );
       })}
 
-      {/* ── ROADMAP PAGE (only when the last opportunities page was full) ── */}
-      {!lastPageIsSingle && (
-        <Page size="A4" style={s.page}>
-          <View style={s.sec}>
-            <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
-            <Text style={s.heading}>Your 3-Phase Roadmap</Text>
-            <Roadmap implementationRoadmap={implementationRoadmap} />
-          </View>
-          <View style={s.divider} />
+      {/* ── ROADMAP + NEXT STEPS ──────────────────────────────── */}
+      <Page size="A4" style={s.page}>
+        <View style={s.sec}>
+          <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
+          <Text style={s.heading}>Your 3-Phase Roadmap</Text>
+          <Roadmap implementationRoadmap={implementationRoadmap} />
+        </View>
+        <View style={s.divider} />
+        {/* wrap={false}: if a tall roadmap leaves too little room, the whole
+            CTA block moves to the next page instead of splitting. The divider
+            trails the roadmap, so the moved block never starts with a rule. */}
+        <View wrap={false}>
           <NextStepsCta nextSteps={nextSteps} />
-          <Footer company={companyName} />
-        </Page>
-      )}
-
-      {/* ── FINAL PAGE: NEXT STEPS + CTA ─────────────────────── */}
-      {lastPageIsSingle && (
-        <Page size="A4" style={s.page}>
-          <NextStepsCta nextSteps={nextSteps} />
-          <Footer company={companyName} />
-        </Page>
-      )}
+        </View>
+        <Footer company={companyName} />
+      </Page>
 
     </Document>
   );

@@ -1,74 +1,63 @@
-# Worksheet — snapshot-pdf.tsx whitespace/pagination defects (open)
+# Worksheet — snapshot-pdf.tsx whitespace/pagination defects
 
-**Date:** 2026-09-02 · **Repo:** ai-audit · **Status:** OPEN, not started
-
-## RESUME KEYWORD: `PDF WHITESPACE RESUME`
+**Date:** 2026-09-02 · **Repo:** ai-audit · **Status:** FIXED locally, committed, NOT pushed (push = Vercel deploy, awaiting Max)
+**Resumed via:** `PDF WHITESPACE RESUME` · **Predecessor:** `visual-qa-scoring-fix-2026-09-02.md`
 
 ## Goal
 
-Follow-up from `state/worksheets/visual-qa-scoring-fix-2026-09-02.md`. Once the
-visual-QA scoring pipeline was fixed (3 stacked bugs, all closed), it immediately
-produced its first real result: score 42/100, verdict "fail", on a 7-page test PDF.
+Once visual-QA scoring worked, its first real result on production audit
+`d1f09191-e549-474c-aa84-6358f2fc722a` was 42/100, "fail", 6 whitespace defects. Find and fix the layout bugs.
 
-## Evidence — the actual visual-QA output that started this
+## Root causes — two, not one
 
-```json
-{
-  "visual_qa_score": 42,
-  "visual_qa_verdict": "fail",
-  "visual_qa_issues": [
-    "page 1: excessive blank space in upper half and large dead zone below content",
-    "page 2: substantial whitespace at bottom of page after last content block",
-    "page 3: uneven vertical spacing between sections with large gaps throughout; content appears too sparse for page",
-    "page 6: significant dead space between card section and three-column grid at bottom",
-    "page 7: page is almost entirely blank except for small element at bottom left - severe whitespace imbalance",
-    "page 8: excessive whitespace in upper two-thirds of page; button element placed very low with no supporting content"
-  ]
-}
-```
-Source audit: `d1f09191-e549-474c-aa84-6358f2fc722a` (production, `audit.wexadvisory.com`).
+Reproduced locally (`scripts/render-pages.mjs` renders the audit's PDF and rasterizes every page) and
+looked at every page before touching code. The head-start hypothesis was half the story:
 
-## Head-start hypothesis, NOT yet verified or fixed
+1. **`justifyContent: 'center'` on the shared `s.page` style** — confirmed. Every non-cover page was
+   vertically centered, so exec summary, scorecard and CTA pages showed a large blank band on top.
+   Fix: dropped it; top margin moved from each section (`sec` padding-top 36) onto the Page itself
+   (`paddingTop: 36`) so react-pdf applies it to auto-generated continuation pages too.
+2. **Roadmap fold-in on the lone-card page** — the code folded the 3-phase roadmap onto the last
+   opportunities page whenever it held a single card (the *common* case: synthesize.ts caps
+   opportunities at exactly 5). Roadmap height depends on LLM output; when it didn't fit, react-pdf
+   split the 3-column row mid-column and the Quick Wins column's totals row landed alone on an
+   otherwise blank page (the "page 7 almost entirely blank" finding). Fix: roadmap + next steps always
+   start a fresh page (the layout the even-count path already used); CTA block is `wrap={false}` so a
+   tall roadmap pushes it whole to the next page, divider trails the roadmap so nothing starts with an
+   orphan rule. Tried a smarter "fold in only if it fits" variant first (wrap={false} blocks on the
+   last card page) — worked, but a trailing divider inside the block cost 33pt and un-fit it, and
+   folding only shuffles the same tail whitespace between pages, so deterministic won.
+3. Bonus: cover's top-3 list anchored to the bottom (`marginTop: 'auto'`) — removes the cover's dead
+   zone at the bottom that the QA flagged in every run.
 
-`lib/pdf/snapshot-pdf.tsx` line 27, the shared style for every non-cover page:
-```ts
-page: { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingBottom: 44, justifyContent: 'center' },
-```
-`justifyContent: 'center'` vertically centers page content instead of top-anchoring
-it. Any page shorter than a full A4 sheet — the CTA/next-steps page, a lone leftover
-opportunity card, etc. — gets centered, producing large symmetric blank bands. This
-matches every reported symptom (dead zones, "almost entirely blank" pages) and is a
-one-line, cheaply testable culprit. **Not confirmed** — no render was inspected, no
-property was changed and re-tested.
+## Verification evidence (local, same production report data)
 
-Secondary suspect if the above isn't the whole story: the explicit pagination logic
-around lines 348-356 (`oppPages` chunking, `lastPageIsSingle`) — the code comment
-there shows the author already partially solved for "a lone card on its own mostly-
-blank page" by folding the roadmap onto that page when it happens, but evidently not
-completely (see page 7's "almost entirely blank" finding).
+| Render | Pages | Visual-QA score | Verdict |
+|---|---|---|---|
+| Before (current prod) | 8 | 42 (prod run) / 72 (local re-score of identical render) | fail |
+| After | 7 | 92, 85 (two runs) | pass |
+| After, 4-opp variant (even path) | 6 | 92 | pass |
+| After, 5-opp + 5 items/phase roadmap | 8 | not scored; viewed: roadmap page + CTA moves whole to p8, no split | — |
 
-## Suggested first steps for the resumed session
+All page PNGs viewed by eye, not just scored. Before/after board shown to Max:
+`scratchpad/pdf-before-after.html` (session-local).
+`npx tsc --noEmit` clean, `eslint lib/pdf/snapshot-pdf.tsx` clean.
 
-1. Change `justifyContent: 'center'` → `'flex-start'` (or drop the property; that's
-   react-pdf's default) on `s.page`.
-2. Regenerate the same test PDF (`scripts/render-test-pdf.mjs` exists in this repo —
-   check what it currently does before assuming its output source data) and re-score
-   it via `scripts/visual-qa-check.mjs` locally — no live audit trigger or cost needed
-   for this iteration loop.
-3. Compare before/after scores and issue lists. If score improves a lot but doesn't
-   fully clear, look at the pagination logic next (see secondary suspect above).
-4. Once confident locally, confirm with one live production audit trigger (~$1-2,
-   same pattern as the closed visual-QA worksheet) before calling this done.
+**Scorer variance note:** the identical "before" PDF scored 42 in production and 72 locally; the
+identical "after" PDF scored 92 then 85. Haiku's visual grader has ±15-30pt noise. A single score
+is not a signal — treat the verdict + specific issues as the signal, and re-score before acting on
+a borderline number.
 
-## Verification standard
+## Residuals (content-volume, not layout bugs)
 
-Don't declare this fixed on a clean local render alone — per the OS's own
-"verify by using it, not by testing it" standard, pull the actual `visual_qa_score`
-from a live production run and confirm the specific issues listed above are gone,
-not just that the score number went up.
+- Exec summary page ends ~60% down; scorecard page similar. Content is what it is.
+- Lone 5th-card page ends ~55% down. Option if Max wants it filled: fold the Next Steps/CTA block
+  (short, fixed height) onto that page and give the roadmap its own final page — but that reorders
+  the narrative (CTA before roadmap). Product call, not made here.
 
-## Cost note
+## Remaining scope
 
-Local render/score iteration is free (uses existing `.env.local` keys, no email
-send). Final live confirmation ~$1-2, Max's own Anthropic/Firecrawl/Tavily keys,
-target `maxwexley@wexadvisory.com` only — same scope as the closed bug's fix.
+1. Max: push `master` (auto-deploys Vercel) — not done, deploy needs approval.
+2. Then one live audit trigger (~$1-2, Max's keys, `maxwexley@wexadvisory.com` only) and pull
+   `visual_qa_score`/`visual_qa_issues` from the `audits` row to confirm in production.
+3. Stale June PNGs in `scripts/` (page-*.png, v2-page-*.png, roadmap-*.png) are dev litter — untouched.
