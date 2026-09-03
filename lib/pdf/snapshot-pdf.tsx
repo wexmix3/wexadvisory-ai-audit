@@ -389,7 +389,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
           {/* Top 3 opportunities preview */}
           {top3.length > 0 && (
-            <View style={{ marginTop: 'auto' }}>
+            <View>
               <Text style={s.coverOppsLabel}>TOP OPPORTUNITIES IDENTIFIED</Text>
               {top3.map((opp, i) => (
                 <View key={opp.id} style={s.coverOppRow}>

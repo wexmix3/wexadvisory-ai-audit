@@ -61,3 +61,39 @@ a borderline number.
 2. Then one live audit trigger (~$1-2, Max's keys, `maxwexley@wexadvisory.com` only) and pull
    `visual_qa_score`/`visual_qa_issues` from the `audits` row to confirm in production.
 3. Stale June PNGs in `scripts/` (page-*.png, v2-page-*.png, roadmap-*.png) are dev litter — untouched.
+
+## Live confirmation (2026-09-02 22:02-22:05 EDT)
+
+Pushed `db958d9`, Vercel deploy Ready, triggered audit `b72c3c8b-6c5b-410e-b261-3fd6d9e50ac3`
+(Wex Advisory PDF Layout Test, utm `pdf-whitespace-verify`, ~$1-2 on Max's keys).
+Result: 7 pages, `visual_qa_score` 62, verdict fail, issues:
+
+- page 1: excessive blank space below content section
+- page 2 / page 3 / page 6: dead zone in lower half after last block
+- page 7: "very large dead zone between three-column card section and footer bar"
+
+Rendered the same audit locally and inspected every page: the two original defects are
+gone in production (no centered blank bands, roadmap intact on one page with the CTA
+below it, no near-empty page). The page-7 flag is the ordinary space under the CTA
+box, not a defect. Pages 2/3/6 are content-volume: exec summary, scorecard and the
+lone 5th card each fill ~55-60% of a page, and no pagination change fixes that.
+
+The page-1 flag was made worse by my cover change (`marginTop: 'auto'` on the top-3
+list moved the gap from the bottom to the middle of the cover). Reverted in the
+follow-up commit; cover is back to the original top-anchored composition.
+
+## Grader calibration note
+
+Same PDF: 42 (prod) vs 72 (local). Fixed PDF: 92 and 85 on identical bytes. Live
+run on different content: 62. Haiku's numeric score swings ~30 points on identical
+input; the named issues are stable. Treat `visual_qa_verdict` as a "look at it"
+signal, not a pass/fail gate, until the prompt is calibrated (e.g. ask for per-page
+fill ratios, or grade against a rubric with explicit tolerances). Tracked as
+skill-observations Obs 57 in aios.
+
+## Remaining scope (not this bug)
+
+- Content-volume whitespace on exec summary / scorecard / lone-card pages needs a
+  design pass (denser packing, or CTA folded onto the lone-card page ahead of the
+  roadmap - a content-order decision for Max).
+- Grader calibration above.
