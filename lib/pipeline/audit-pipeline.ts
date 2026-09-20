@@ -29,10 +29,20 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
 
     const domain = intake.companyUrl.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
 
+    let trafficError: string | null = null;
+
     const [pages, signals, traffic] = await Promise.all([
       scrapeMultiplePages(intake.companyUrl),
       gatherCompanySignals(intake.companyName, domain),
-      getDomainTraffic(intake.companyUrl).catch(() => null),
+      getDomainTraffic(intake.companyUrl).catch((err: unknown) => {
+        // Was `.catch(() => null)` — a dead DataForSEO account produced audits
+        // with no traffic data and no error anywhere for weeks (2026-09-20).
+        // The audit still ships (the lead is worth more than this section) but
+        // the failure is logged AND persisted on the row below, never silent.
+        trafficError = err instanceof Error ? err.message : String(err);
+        console.error(`[audit-pipeline] traffic data unavailable for ${domain}: ${trafficError}`);
+        return null;
+      }),
     ]);
 
     const webContent = consolidateWebContent(pages);
@@ -51,7 +61,10 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       search_results: [...signals.jobs, ...signals.reviews, ...signals.news],
       tech_signals: techSignals,
       job_signals: inferredDepartments,
-      traffic_data: traffic,
+      // Record the vendor failure in place of the data, so a thin audit is
+      // explainable after the fact instead of looking like a quiet domain.
+      traffic_data:
+        traffic ?? (trafficError ? { error: trafficError, failed_at: new Date().toISOString() } : null),
     }).eq('id', auditId);
 
     // Phase 2: Classify
