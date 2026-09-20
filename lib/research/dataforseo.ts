@@ -74,8 +74,26 @@ export async function getDomainTraffic(url: string): Promise<DomainTrafficData |
         },
       ]),
     ]);
+    // domain_rank_overview nests its metrics one level deeper than this code
+    // originally assumed: result[0].items[0].metrics.organic, NOT
+    // result[0].metrics.organic. Reading the shallow path returned undefined
+    // on every successful call, so traffic was recorded as null even when the
+    // API returned real numbers and charged for them (~$0.012/call). Verified
+    // live 2026-09-20: stripe.com etv 661,351 sits under items[0].
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const organic = (overviewRes as any)?.tasks?.[0]?.result?.[0]?.metrics?.organic;
+    const overviewResult = (overviewRes as any)?.tasks?.[0]?.result?.[0];
+    const organic = overviewResult?.items?.[0]?.metrics?.organic ?? overviewResult?.metrics?.organic;
+
+    // A 20000 Ok whose result carries no items array at all means the response
+    // shape moved again. Fail loudly rather than silently recording nulls for
+    // a call that succeeded and was billed. (An EMPTY items array is a real
+    // answer — a domain with no ranking data — and is left alone.)
+    if (overviewResult && !Array.isArray(overviewResult.items) && !overviewResult.metrics) {
+      throw new Error(
+        'DataForSEO domain_rank_overview returned no items array — response shape changed, traffic parsing needs review'
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items: any[] = (keywordsRes as any)?.tasks?.[0]?.result?.[0]?.items ?? [];
     return {
