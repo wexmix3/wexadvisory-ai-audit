@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AuditReportData, SnapshotIntake, ProposalContent, DecompressedProblem } from '@/types/audit';
+import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF, assertProposalTerms } from '@/lib/proposal/terms';
 
 let client: Anthropic | null = null;
 
@@ -26,6 +27,8 @@ RULES:
 7. emailSubject must be specific — reference company name and top savings figure
 8. The emailBody must only reference savings figures that exactly match the opportunities array. Never summarize or re-estimate — pull exact numbers from the JSON.
 9. All monetary values must use exact figures from the audit, not rounded estimates
+10. Quote only the rates and terms given under ENGAGEMENT TERMS. Maintenance after launch is hourly and only as needed.
+11. The team handoff under ENGAGEMENT TERMS is printed in the proposal PDF as written. Do not restate or extend it; one sentence in the emailBody saying a recorded team walkthrough is included is enough.
 
 Output ONLY valid JSON — no markdown, no preamble:
 
@@ -45,8 +48,8 @@ Output ONLY valid JSON — no markdown, no preamble:
     }
   ],
   "engagementScope": "string — bullet-point style description of concrete deliverables for Phase 1 (quick wins). Use \\n to separate items.",
-  "engagementTimeline": "string — e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. Ongoing: Monthly retainer for maintenance and optimization.'",
-  "monthlyRetainerDescription": "string — 1-2 sentences on what the $300/mo retainer covers",
+  "engagementTimeline": "string — e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. After launch: maintenance billed hourly, as needed.'",
+  "ongoingSupportDescription": "string — 1-2 sentences on what hourly maintenance after launch would cover for this company",
   "nextStep": "string — specific CTA sentence pointing to the Calendly link",
   "emailSubject": "string — specific subject line referencing company and top savings",
   "emailBody": "string — 3-4 paragraph email body. Use \\n\\n between paragraphs. Formal consulting tone. Sign off as Max Wexley, Wex Advisory."
@@ -111,9 +114,10 @@ ${trafficSummary ? `TRAFFIC DATA: ${trafficSummary}` : ''}
 TOP 3 OPPORTUNITIES (ranked by annual savings):
 ${top3}
 
-ENGAGEMENT RATES:
-- Hourly build rate: $150/hr
-- Monthly retainer: $300/mo (ongoing maintenance, optimization, and on-call support after Phase 1)
+ENGAGEMENT TERMS:
+- Build rate: ${BUILD_RATE_USD}/hr (design, build, testing)
+- Maintenance rate: ${MAINTENANCE_RATE_USD}/hr (changes and upkeep after launch, billed only when needed)
+- Team handoff, included with every build: ${TEAM_HANDOFF}
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/free-strategy-call
 
 Generate the proposal JSON. Be specific to ${intake.companyName} — reference their actual processes and tools, not generic descriptions.`;
@@ -150,6 +154,7 @@ export async function generateProposalContent(
   if (!match) throw new Error('Proposal generation returned no JSON');
 
   const content: ProposalContent = JSON.parse(match[0]);
+  assertProposalTerms(content);
   return {
     content,
     inputTokens: message.usage.input_tokens,

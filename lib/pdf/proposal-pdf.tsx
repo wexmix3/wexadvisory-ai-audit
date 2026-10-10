@@ -8,6 +8,7 @@ import {
   renderToBuffer,
 } from '@react-pdf/renderer';
 import type { ProposalContent } from '@/types/audit';
+import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF } from '@/lib/proposal/terms';
 
 // All strings must use ASCII only -- Helvetica does not support non-ASCII glyphs.
 // Use -> instead of ->, * instead of bullets, etc.
@@ -169,7 +170,7 @@ function ExecutiveSummaryPage({ content }: { content: ProposalContent }) {
         </Text>
         <Text style={[s.body, { marginTop: 12 }]}>
           Wex Advisory will serve as your dedicated implementation partner -- handling tool selection,
-          workflow design, build, and testing. Ongoing support is available via monthly retainer.
+          workflow design, build, and testing. After launch, support is billed hourly and only when you need it.
         </Text>
       </View>
       <Footer companyName={content.companyName} page="2" />
@@ -184,7 +185,7 @@ function OpportunitiesPage({ content }: { content: ProposalContent }) {
         <Text style={s.eyebrow}>SECTION 02</Text>
         <Text style={s.heading}>Priority Opportunities</Text>
         {content.opportunities.map((opp, i) => (
-          <View key={i} style={s.oppCard}>
+          <View key={i} style={s.oppCard} wrap={false}>
             <View style={s.oppHeader}>
               <View style={s.oppHeaderLeft}>
                 <Text style={s.oppNum}>OPPORTUNITY {String(i + 1).padStart(2, '0')}</Text>
@@ -230,14 +231,14 @@ function EngagementPage({ content }: { content: ProposalContent }) {
 
         <View style={s.engRow}>
           <View style={s.engBox}>
-            <Text style={s.engLabel}>HOURLY BUILD RATE</Text>
-            <Text style={s.engValue}>$150</Text>
+            <Text style={s.engLabel}>BUILD RATE</Text>
+            <Text style={s.engValue}>${BUILD_RATE_USD}</Text>
             <Text style={s.engSub}>per hour</Text>
           </View>
           <View style={s.engBox}>
-            <Text style={s.engLabel}>MONTHLY RETAINER</Text>
-            <Text style={s.engValue}>$300</Text>
-            <Text style={s.engSub}>per month (optional)</Text>
+            <Text style={s.engLabel}>MAINTENANCE RATE</Text>
+            <Text style={s.engValue}>${MAINTENANCE_RATE_USD}</Text>
+            <Text style={s.engSub}>per hour, as needed after launch</Text>
           </View>
         </View>
 
@@ -245,7 +246,7 @@ function EngagementPage({ content }: { content: ProposalContent }) {
         {scopeLines.map((line, i) => (
           <View key={i} style={s.scopeItem}>
             <Text style={s.scopeBullet}>*</Text>
-            <Text style={s.scopeText}>{line.replace(/^[\-\*\+]\s*/, '')}</Text>
+            <Text style={s.scopeText}>{line.replace(/^[\-\*\+•–—]\s*/, '')}</Text>
           </View>
         ))}
 
@@ -255,8 +256,13 @@ function EngagementPage({ content }: { content: ProposalContent }) {
         </View>
 
         <View style={s.retainerBox}>
-          <Text style={[s.eyebrow, { marginBottom: 4 }]}>MONTHLY RETAINER (OPTIONAL)</Text>
-          <Text style={s.body}>{content.monthlyRetainerDescription}</Text>
+          <Text style={[s.eyebrow, { marginBottom: 4 }]}>AFTER LAUNCH</Text>
+          <Text style={s.body}>{content.ongoingSupportDescription}</Text>
+        </View>
+
+        <View style={s.retainerBox}>
+          <Text style={[s.eyebrow, { marginBottom: 4 }]}>TEAM HANDOFF (INCLUDED)</Text>
+          <Text style={s.body}>{TEAM_HANDOFF}</Text>
         </View>
       </View>
       <Footer companyName={content.companyName} page="4" />

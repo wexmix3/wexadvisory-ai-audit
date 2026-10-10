@@ -156,7 +156,7 @@ export interface ProposalContent {
   opportunities: ProposalOpportunityFrame[];
   engagementScope: string;
   engagementTimeline: string;
-  monthlyRetainerDescription: string;
+  ongoingSupportDescription: string;
   nextStep: string;
   emailSubject: string;
   emailBody: string;
