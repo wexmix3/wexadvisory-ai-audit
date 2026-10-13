@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from '@react-pdf/renderer';
 import type { ProposalContent } from '@/types/audit';
-import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF } from '@/lib/proposal/terms';
+import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, RETAINER_TERMS, TEAM_HANDOFF } from '@/lib/proposal/terms';
 
 // All strings must use ASCII only -- Helvetica does not support non-ASCII glyphs.
 // Use -> instead of ->, * instead of bullets, etc.
@@ -258,6 +258,7 @@ function EngagementPage({ content }: { content: ProposalContent }) {
         <View style={s.retainerBox}>
           <Text style={[s.eyebrow, { marginBottom: 4 }]}>AFTER LAUNCH</Text>
           <Text style={s.body}>{content.ongoingSupportDescription}</Text>
+          <Text style={[s.body, { marginTop: 6 }]}>{RETAINER_TERMS}</Text>
         </View>
 
         <View style={s.retainerBox}>
