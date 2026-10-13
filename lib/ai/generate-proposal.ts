@@ -117,6 +117,7 @@ ${top3}
 ENGAGEMENT TERMS:
 - Build rate: ${BUILD_RATE_USD}/hr (design, build, testing)
 - Maintenance rate: ${MAINTENANCE_RATE_USD}/hr (changes and upkeep after launch, billed only when needed)
+- Retainers: do not mention them anywhere. The PDF prints that term itself.
 - Team handoff, included with every build: ${TEAM_HANDOFF}
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/free-strategy-call
 

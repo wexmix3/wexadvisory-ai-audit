@@ -14,11 +14,18 @@ export const TEAM_HANDOFF =
   'While we are working together, there is a refresher each quarter and the guide is updated when ' +
   `the tools change. Further training is available at $${BUILD_RATE_USD} per hour.`;
 
+// Printed verbatim in the PDF after the model's maintenance text. Retainers
+// vary by project, so no amount is stated here and the model may not write
+// about retainers itself (see OFF_TERMS): it would have to invent a number.
+export const RETAINER_TERMS =
+  'Where a project needs ongoing work every month, a monthly retainer is available. The amount ' +
+  'depends on the project and is quoted before you commit.';
+
 // Terms the model must not introduce. A proposal that quotes a rate or a
 // promise we do not offer is worse than no proposal, so this throws and the
 // pipeline records the failure and alerts.
 const OFF_TERMS: { pattern: RegExp; label: string }[] = [
-  { pattern: /monthly retainer/i, label: 'a monthly retainer' },
+  { pattern: /retainer/i, label: 'a retainer (only RETAINER_TERMS may state it)' },
   { pattern: /\$\s?300\s*(\/|per|a)\s*mo/i, label: 'the retired $300/mo retainer' },
   { pattern: /lifetime access/i, label: 'lifetime access' },
   { pattern: /on-?site (visit|training|session)/i, label: 'on-site visits' },
