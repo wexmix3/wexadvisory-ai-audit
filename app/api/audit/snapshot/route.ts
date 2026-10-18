@@ -5,6 +5,15 @@ import type { SnapshotIntake } from '@/types/audit';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+// Optional intake answer. Anything that is not a plausible weekly figure
+// (0 < h <= 168) is dropped rather than rejected: the field is optional.
+function parseHoursPerWeek(v: unknown): number | undefined {
+  if (typeof v !== 'number' && typeof v !== 'string') return undefined;
+  if (typeof v === 'string' && v.trim() === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 && n <= 168 ? n : undefined;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -14,6 +23,7 @@ export async function POST(req: NextRequest) {
       industry: (body.industry || '').trim(),
       employeeRange: body.employeeRange || '11-50',
       biggestChallenge: (body.biggestChallenge || '').trim(),
+      hoursPerWeek: parseHoursPerWeek(body.hoursPerWeek),
       contactName: (body.contactName || '').trim(),
       contactEmail: (body.contactEmail || '').trim().toLowerCase(),
       utmSource: (body.utmSource || '').trim(),

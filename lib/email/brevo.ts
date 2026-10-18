@@ -1,5 +1,6 @@
 import type { AuditReportData } from '@/types/audit';
 import { generateSnapshotPDF } from '@/lib/pdf/snapshot-pdf';
+import { fmtRange } from '@/lib/ai/opportunity-math';
 
 // Sends via Brevo instead of Resend. wexadvisory.com (root) is added to the
 // account but not yet DNS-verified there; send.wexadvisory.com IS verified
@@ -25,6 +26,10 @@ const HEADER_UNSAFE_CHARS = new RegExp(
 
 function sanitizeForHeader(s: string): string {
   return s.replace(HEADER_UNSAFE_CHARS, '').trim();
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 async function sendViaBrevo(payload: {
@@ -72,7 +77,11 @@ export async function sendSnapshotEmail(params: {
 }): Promise<{ pdfBuffer: Buffer | undefined }> {
   const { toEmail, toName, companyName, companyUrl, totalAnnualSavings, resultsUrl, reportData } = params;
   const firstName = toName.split(' ')[0] || toName;
-  const savings = `$${(totalAnnualSavings / 1000).toFixed(0)}K`;
+  // Range when the report has a conservative figure (2026-10-18+), else the old single figure.
+  const conservative = reportData.executiveSummary?.totalAnnualSavingsConservative;
+  const savings = typeof conservative === 'number'
+    ? fmtRange(totalAnnualSavings, conservative)
+    : `$${(totalAnnualSavings / 1000).toFixed(0)}K`;
   const subjectSafeCompanyName = sanitizeForHeader(companyName);
 
   let pdfBuffer: Buffer | undefined = params.pdfBuffer;
@@ -121,24 +130,18 @@ export async function sendSnapshotEmail(params: {
       </div>
 
       <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-        The snapshot shows your scores across 5 dimensions — AI Readiness, Automation Opportunity, Data Visibility, Revenue Acceleration, and Overall Maturity — benchmarked against other businesses in your industry.
+        The snapshot scores you on 5 dimensions (AI Readiness, Automation Opportunity, Data Visibility, Revenue Acceleration and Overall Maturity) against other businesses in your industry. The attached report shows the math for each workflow. Where you see a range, the lower number is the conservative case.
       </p>
 
-      <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 8px;">
-        Want to go deeper? A full audit gives you:
+      <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
+        Next step, if you want it: a free 30-minute numbers review. We swap my estimates for your real numbers on your top workflow. You leave with an hours estimate to build it.
       </p>
-      <ul style="color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 24px; padding-left: 20px;">
-        <li>Department-by-department breakdown with full labor math</li>
-        <li>Prioritized implementation roadmap (Phase 1/2/3)</li>
-        <li>Specific tool recommendations with cost estimates</li>
-        <li>ROI calculator with payback periods</li>
-      </ul>
 
-      <a href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book a Free Strategy Call →</a>
+      <a href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book the free numbers review →</a>
 
       <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
         <p style="color: #6b7280; font-size: 14px; margin: 0;">
-          — Max Wexley<br>
+          Max Wexley<br>
           <span style="color: #C8A84B;">Wex Advisory</span> · <a href="https://wexadvisory.com" style="color: #6b7280;">wexadvisory.com</a>
         </p>
       </div>
@@ -163,11 +166,22 @@ export async function sendAdminNotification(params: {
   auditId: string;
   resultsUrl: string;
   source?: string;
+  /** Final quality-gate issues for the delivered report (eval_quality.gate_issues). */
+  qualityGateIssues?: string[];
+  droppedOpportunities?: string[];
 }) {
   const {
     companyName, contactName, contactEmail, industry, employeeRange,
     totalAnnualSavings, aiReadinessScore, topOpportunity, resultsUrl, source,
   } = params;
+
+  const gateIssues = params.qualityGateIssues ?? [];
+  const dropped = params.droppedOpportunities ?? [];
+  const gateLine =
+    (gateIssues.length === 0
+      ? 'Quality gate: passed'
+      : `Quality gate: ${gateIssues.length} issue${gateIssues.length === 1 ? '' : 's'}: ${gateIssues.join('; ')}`) +
+    (dropped.length > 0 ? ` (dropped as not worth automating: ${dropped.join('; ')})` : '');
 
   const isTrackedSource = !!source && source !== 'audit';
   const subjectSafeCompanyName = sanitizeForHeader(companyName);
@@ -192,8 +206,10 @@ export async function sendAdminNotification(params: {
     <tr><td style="padding: 6px 0; color: #6b7280;">Top Opportunity</td><td style="color: #111827;">${topOpportunity}</td></tr>
   </table>
 
+  <p style="color: ${gateIssues.length === 0 ? '#059669' : '#b45309'}; font-size: 13px; margin: 0 0 12px;">${escapeHtml(gateLine)}</p>
+
   <div style="margin: 20px 0;">
-    <a href="${resultsUrl}" style="background: #0A1628; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-right: 12px;">View Full Audit →</a>
+    <a href="${resultsUrl}" style="background: #0A1628; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-right: 12px;">View report →</a>
     <a href="mailto:${contactEmail}?subject=Re: Your AI Opportunity Snapshot for ${companyName}" style="background: #C8A84B; color: #0A1628; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; font-weight: 600;">Reply to Lead →</a>
   </div>
 

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
 async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
   try {
-    const { reportData } = await runAuditPipeline(auditId, intake);
+    const { reportData, gateIssues, droppedOpportunities } = await runAuditPipeline(auditId, intake);
 
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/results/${auditId}`;
 
@@ -63,6 +63,8 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         auditId,
         resultsUrl,
         source: intake.utmSource || undefined,
+        qualityGateIssues: gateIssues,
+        droppedOpportunities,
       }),
     ]);
 

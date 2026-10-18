@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { Check } from 'lucide-react';
 import type { AuditScores } from '@/types/audit';
 
 type Status = 'pending' | 'researching' | 'analyzing' | 'generating' | 'complete' | 'failed';
@@ -27,8 +26,21 @@ const STATUS_PROGRESS: Record<Status, number> = {
 
 interface AuditSummary {
   totalAnnualSavings: number;
+  /** Missing on reports stored before 2026-10-18. */
+  totalAnnualSavingsConservative?: number;
   headline: string;
   scores: AuditScores;
+}
+
+// Same style as before, as a range when the conservative figure exists.
+function fmtK(n: number) {
+  return `$${(n / 1000).toFixed(0)}K`;
+}
+
+function savingsLabel(s: AuditSummary) {
+  return typeof s.totalAnnualSavingsConservative === 'number'
+    ? `${fmtK(s.totalAnnualSavingsConservative)}-${fmtK(s.totalAnnualSavings)}`
+    : fmtK(s.totalAnnualSavings);
 }
 
 function ScoreGauge({ label, score, percentile, verdict }: {
@@ -84,12 +96,17 @@ export default function ResultsPage() {
   }, [auditId]);
 
   useEffect(() => {
-    poll();
+    // First poll runs from a timer callback, not the effect body
+    // (react-hooks/set-state-in-effect). Same timing in practice.
+    const first = setTimeout(poll, 0);
     const interval = setInterval(() => {
       if (status === 'complete' || status === 'failed') return;
       poll();
     }, 2500);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(first);
+      clearInterval(interval);
+    };
   }, [poll, status]);
 
   const progress = STATUS_PROGRESS[status] ?? 5;
@@ -103,7 +120,7 @@ export default function ResultsPage() {
         <div className="text-center mb-10">
           <div className="text-[#C8A84B] text-sm font-semibold tracking-widest uppercase mb-2">Wex Advisory</div>
           <h1 className="text-white text-3xl font-bold">
-            {companyName ? `AI Opportunity Snapshot — ${companyName}` : 'AI Opportunity Snapshot'}
+            {companyName ? `AI Opportunity Snapshot: ${companyName}` : 'AI Opportunity Snapshot'}
           </h1>
         </div>
 
@@ -148,9 +165,12 @@ export default function ResultsPage() {
               <div className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">
                 Estimated Annual Savings Potential
               </div>
-              <div className="text-[#C8A84B] text-6xl font-bold mb-2">
-                ${(summary.totalAnnualSavings / 1000).toFixed(0)}K
+              <div className="text-[#C8A84B] text-5xl sm:text-6xl font-bold mb-2">
+                {savingsLabel(summary)}
               </div>
+              {typeof summary.totalAnnualSavingsConservative === 'number' && (
+                <div className="text-slate-400 text-xs mb-3">Conservative to best case</div>
+              )}
               <p className="text-slate-300 text-base max-w-lg mx-auto">
                 {summary.headline}
               </p>
@@ -193,14 +213,14 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            {/* Teaser CTA */}
+            {/* Next step: numbers review */}
             <div className="bg-[#C8A84B]/10 border border-[#C8A84B]/30 rounded-2xl p-8">
               <div className="max-w-xl mx-auto text-center">
                 <h2 className="text-white text-xl font-bold mb-2">
                   Your full report was sent to your inbox
                 </h2>
                 <p className="text-slate-300 text-sm mb-6">
-                  The Snapshot shows your scores. A full audit reveals the specific workflows, labor math, implementation roadmap, and tool-by-tool recommendations that unlock this savings potential.
+                  Next step, if you want it: a free 30-minute numbers review. We swap my estimates for your real numbers on your top workflow. You leave with an hours estimate to build it.
                 </p>
                 <a
                   href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call"
@@ -208,31 +228,9 @@ export default function ResultsPage() {
                   rel="noopener noreferrer"
                   className="inline-block bg-[#C8A84B] hover:bg-[#b8952e] text-[#0A1628] font-bold px-8 py-3.5 rounded-lg text-base transition-colors"
                 >
-                  Book a Free Strategy Call →
+                  Book the free numbers review →
                 </a>
-                <p className="text-slate-500 text-xs mt-3">30 minutes · No sales pressure · Walk through your results together</p>
-              </div>
-            </div>
-
-            {/* What's in the full audit */}
-            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
-              <h3 className="text-white font-semibold mb-4">What the Full Audit includes</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  'Department-by-department workflow breakdown',
-                  'Full labor math (hours × rate × automation ceiling)',
-                  'Phase 1/2/3 implementation roadmap',
-                  'Specific tool recommendations with costs',
-                  'ROI calculator with payback periods',
-                  'Competitive intelligence on AI adoption',
-                  'Custom dashboard recommendations',
-                  'Priority quick wins (implement in <4 weeks)',
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-2 text-slate-300 text-sm">
-                    <Check className="w-4 h-4 text-[#C8A84B] mt-0.5 flex-shrink-0" />
-                    {item}
-                  </div>
-                ))}
+                <p className="text-slate-500 text-xs mt-3">30 minutes · Free · Your numbers replace our estimates</p>
               </div>
             </div>
           </div>

@@ -4,10 +4,14 @@ import {
   Page,
   Text,
   View,
+  Link,
   StyleSheet,
   renderToBuffer,
 } from '@react-pdf/renderer';
-import type { AuditReportData } from '@/types/audit';
+import type { AuditReportData, InputSource } from '@/types/audit';
+import { BUILD_RATE_USD } from '@/lib/proposal/terms';
+
+const CALENDLY_URL = 'https://calendly.com/maxwexley-wexadvisory/free-strategy-call';
 
 const NAVY   = '#0A1628';
 const GOLD   = '#C8A84B';
@@ -40,6 +44,8 @@ const s = StyleSheet.create({
   coverSavingsBox:   { backgroundColor: 'rgba(200,168,75,0.12)', borderRadius: 8, padding: '20 22', marginBottom: 16, borderLeftWidth: 3, borderLeftColor: GOLD },
   coverSavingsLabel: { color: MGRAY, fontSize: 8, letterSpacing: 1.5, marginBottom: 6 },
   coverSavingsNum:   { color: GOLD, fontSize: 52, fontFamily: 'Helvetica-Bold', marginBottom: 6 },
+  coverSavingsRange: { color: GOLD, fontSize: 44, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
+  coverRangeNote:    { color: MGRAY, fontSize: 8, marginBottom: 8 },
   coverHeadline:     { color: WHITE, fontSize: 12, lineHeight: 1.5 },
 
   coverConfidence: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '10 14', marginBottom: 20 },
@@ -138,6 +144,7 @@ const s = StyleSheet.create({
   ctaTitle:    { color: WHITE, fontSize: 14, fontFamily: 'Helvetica-Bold', marginBottom: 6, textAlign: 'center' },
   ctaBody:     { color: MGRAY, fontSize: 9, textAlign: 'center', marginBottom: 14, lineHeight: 1.5 },
   ctaBtn:      { backgroundColor: GOLD, borderRadius: 5, paddingHorizontal: 18, paddingVertical: 9 },
+  ctaLink:     { textDecoration: 'none' },
   ctaBtnTxt:   { color: NAVY, fontSize: 10.5, fontFamily: 'Helvetica-Bold' },
   ctaMeta:     { color: MGRAY, fontSize: 7.5, marginTop: 8 },
 
@@ -153,6 +160,26 @@ function fmt(n: number) {
   if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000)    return `$${Math.round(n / 1000)}K`;
   return `$${n.toLocaleString()}`;
+}
+
+/** "$143K-$287K" when a conservative figure exists, else the single figure. */
+function fmtRange(best: number, conservative?: number) {
+  return typeof conservative === 'number' ? `${fmt(conservative)}-${fmt(best)}` : fmt(best);
+}
+
+function usd(n: number) {
+  return `$${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
+}
+
+function sourceLabel(src: InputSource) {
+  return src === 'from you' ? 'from you' : 'benchmark estimate';
+}
+
+function runsLine(w: { minutesPerRun: number; runsPerMonth: number }) {
+  const runs = Math.round(Number(w.runsPerMonth) || 0);
+  const mins = Number(w.minutesPerRun) || 0;
+  const each = mins >= 1 ? `about ${Math.round(mins)} min each` : `about ${Math.max(1, Math.round(mins * 60))} sec each`;
+  return `Runs about ${runs} time${runs === 1 ? '' : 's'} a month, ${each}.`;
 }
 
 function barColor(score: number) {
@@ -176,8 +203,8 @@ function phaseColor(n: number) {
 function Footer({ company }: { company: string }) {
   return (
     <View style={s.footer} fixed>
-      <Text style={s.footerTxt}>{company} — AI Opportunity Snapshot</Text>
-      <Text style={s.footerGold}>Wex Advisory · wexadvisory.com</Text>
+      <Text style={s.footerTxt}>{company} - AI Opportunity Snapshot</Text>
+      <Text style={s.footerGold}>Wex Advisory  |  wexadvisory.com</Text>
     </View>
   );
 }
@@ -235,10 +262,22 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
           <Text style={s.mathFormula}>
             {opp.hoursPerMonth} hrs/mo  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.fteCountAffected} FTE{opp.fteCountAffected !== 1 ? 's' : ''}  x  {opp.automationCeilingPct}% automation  x  12 months
           </Text>
-          <Text style={s.mathResult}>= {fmt(opp.annualSavings)} / year</Text>
+          <Text style={s.mathResult}>
+            {typeof opp.annualSavingsConservative === 'number'
+              ? `= ${fmt(opp.annualSavingsConservative)}-${fmt(opp.annualSavings)} / year (conservative-best)`
+              : `= ${fmt(opp.annualSavings)} / year`}
+          </Text>
           <Text style={s.mathNote}>
             Annual labor cost at risk: {fmt(laborCost)}  |  {opp.automationCeilingPct}% can be automated
           </Text>
+          {opp.inputSources && (
+            <Text style={s.mathNote}>
+              Inputs: hours ({sourceLabel(opp.inputSources.hours)}), rate ({sourceLabel(opp.inputSources.rate)}), automatable share ({sourceLabel(opp.inputSources.automationShare)})
+            </Text>
+          )}
+          {opp.worthAutomating && (
+            <Text style={s.mathNote}>{runsLine(opp.worthAutomating)}</Text>
+          )}
         </View>
 
         <View style={s.implRow}>
@@ -252,7 +291,10 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
           </View>
           <View style={s.implPill}>
             <Text style={s.implLbl}>INVESTMENT</Text>
-            <Text style={s.implVal}>${opp.implementationCostLow.toLocaleString()}–${opp.implementationCostHigh.toLocaleString()}</Text>
+            <Text style={s.implVal}>{usd(opp.implementationCostLow)}-{usd(opp.implementationCostHigh)}</Text>
+            {typeof opp.buildHoursLow === 'number' && typeof opp.buildHoursHigh === 'number' && (
+              <Text style={s.implLbl}>about {opp.buildHoursLow}-{opp.buildHoursHigh} hrs at ${BUILD_RATE_USD}/hr</Text>
+            )}
           </View>
           <View style={s.implPill}>
             <Text style={s.implLbl}>PAYBACK</Text>
@@ -266,7 +308,7 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
             <View style={s.toolsRow}>
               {opp.recommendedTools.map((t, i) => (
                 <View key={i} style={s.toolPill}>
-                  <Text style={s.toolPillTxt}>{t.name} — {t.purpose}</Text>
+                  <Text style={s.toolPillTxt}>{t.name} - {t.purpose}</Text>
                 </View>
               ))}
             </View>
@@ -330,15 +372,17 @@ function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }
       </View>
 
       <View style={s.ctaBox}>
-        <Text style={s.ctaTitle}>Ready to implement?</Text>
+        <Text style={s.ctaTitle}>Free 30-minute numbers review</Text>
         <Text style={s.ctaBody}>
-          Book a free 30-minute strategy call. We will walk through your results, prioritize
-          the quick wins, and map out exactly what a Wex Advisory engagement would look like.
+          We swap my estimates for your real numbers on your top workflow.
+          You leave with an hours estimate to build it.
         </Text>
-        <View style={s.ctaBtn}>
-          <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
-        </View>
-        <Text style={s.ctaMeta}>No sales pressure  |  30 minutes  |  Walk through your results together</Text>
+        <Link src={CALENDLY_URL} style={s.ctaLink}>
+          <View style={s.ctaBtn}>
+            <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
+          </View>
+        </Link>
+        <Text style={s.ctaMeta}>30 minutes  |  Free  |  Your numbers replace our estimates</Text>
       </View>
     </View>
   );
@@ -347,6 +391,10 @@ function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }
 function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) {
   const { executiveSummary, scores, opportunities, implementationRoadmap, nextSteps } = report;
   const top3 = opportunities.slice(0, 3);
+  const hasRange = typeof executiveSummary.totalAnnualSavingsConservative === 'number';
+  const quickWinConservative = hasRange
+    ? opportunities.filter((o) => o.quickWin).reduce((sum, o) => sum + (o.annualSavingsConservative ?? 0), 0)
+    : undefined;
 
   // Explicit pagination — 2 opportunity cards per page, then the roadmap and
   // next steps always start a fresh page. An earlier version folded the
@@ -362,7 +410,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
   return (
     <Document
-      title={`AI Opportunity Snapshot — ${companyName}`}
+      title={`AI Opportunity Snapshot - ${companyName}`}
       author="Wex Advisory"
       subject="AI Automation Opportunity Analysis"
     >
@@ -378,7 +426,16 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
           {/* Big savings number */}
           <View style={s.coverSavingsBox}>
             <Text style={s.coverSavingsLabel}>ESTIMATED ANNUAL SAVINGS POTENTIAL</Text>
-            <Text style={s.coverSavingsNum}>{fmt(executiveSummary.totalAnnualSavings)}</Text>
+            {typeof executiveSummary.totalAnnualSavingsConservative === 'number' ? (
+              <>
+                <Text style={s.coverSavingsRange}>
+                  {fmtRange(executiveSummary.totalAnnualSavings, executiveSummary.totalAnnualSavingsConservative)}
+                </Text>
+                <Text style={s.coverRangeNote}>CONSERVATIVE TO BEST CASE</Text>
+              </>
+            ) : (
+              <Text style={s.coverSavingsNum}>{fmt(executiveSummary.totalAnnualSavings)}</Text>
+            )}
             <Text style={s.coverHeadline}>{executiveSummary.headline}</Text>
           </View>
 
@@ -397,7 +454,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
                     <Text style={s.coverOppRankTxt}>{i + 1}</Text>
                   </View>
                   <Text style={s.coverOppText}>{opp.title}</Text>
-                  <Text style={s.coverOppSavings}>{fmt(opp.annualSavings)}/yr</Text>
+                  <Text style={s.coverOppSavings}>{fmtRange(opp.annualSavings, opp.annualSavingsConservative)}/yr</Text>
                 </View>
               ))}
             </View>
@@ -406,7 +463,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
         <View style={s.coverFooter}>
           <Text style={s.coverFooterTxt}>Generated {generatedDate}</Text>
-          <Text style={s.coverFooterTxt}>Prepared by Wex Advisory · wexadvisory.com</Text>
+          <Text style={s.coverFooterTxt}>Prepared by Wex Advisory  |  wexadvisory.com</Text>
         </View>
       </Page>
 
@@ -422,11 +479,11 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
 
           <View style={s.metricsRow}>
             <View style={s.metricBox}>
-              <Text style={s.metricVal}>{fmt(executiveSummary.totalAnnualSavings)}</Text>
+              <Text style={s.metricVal}>{fmtRange(executiveSummary.totalAnnualSavings, executiveSummary.totalAnnualSavingsConservative)}</Text>
               <Text style={s.metricLbl}>TOTAL ANNUAL SAVINGS</Text>
             </View>
             <View style={s.metricBox}>
-              <Text style={s.metricVal}>{fmt(executiveSummary.quickWinSavings)}</Text>
+              <Text style={s.metricVal}>{fmtRange(executiveSummary.quickWinSavings, quickWinConservative)}</Text>
               <Text style={s.metricLbl}>QUICK WINS (&lt;= 4 WKS)</Text>
             </View>
             <View style={s.metricBox}>
@@ -434,6 +491,16 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
               <Text style={s.metricLbl}>QUICK WIN OPPORTUNITIES</Text>
             </View>
           </View>
+
+          {hasRange && (
+            <View style={s.infoBox}>
+              <Text style={s.infoLbl}>HOW TO READ THE RANGE</Text>
+              <Text style={s.infoTxt}>
+                Conservative assumes half the estimated automatable share. Every input marked estimate is ours,
+                not yours; the numbers review replaces them.
+              </Text>
+            </View>
+          )}
 
           <View style={s.infoBox}>
             <Text style={s.infoLbl}>WHY ACT NOW</Text>
