@@ -16,6 +16,8 @@ export interface SnapshotIntake {
   utmSource?: string;
   /** Outreach-tool prospect id, from ?pid= — lets a completed audit be joined back to the exact send. */
   prospectId?: string;
+  /** Hours a week they say the biggestChallenge task takes. Optional; only 0 < h <= 168 is kept. */
+  hoursPerWeek?: number;
 }
 
 export interface BusinessClassification {
@@ -52,6 +54,27 @@ export interface RecommendedTool {
   pricing: string;
 }
 
+/** Where an input to the savings math came from. Set in code, never by the model. */
+export type InputSource = 'from you' | 'industry benchmark estimate';
+
+export interface InputSources {
+  hours: InputSource;
+  rate: InputSource;
+  automationShare: InputSource;
+}
+
+/** Model-supplied facts behind the worth-automating score (lib/ai/opportunity-math.ts). */
+export interface WorthAutomating {
+  minutesPerRun: number;
+  runsPerMonth: number;
+  /** 0-2 */
+  skillGap: number;
+  /** 0-2: 0 = a wrong output reaches a customer or the books unreviewed, 2 = a person approves before it ships */
+  mistakeCost: number;
+  /** 0-2: 0 = a $20/month ChatGPT seat already does this, 2 = needs their systems/data wired in */
+  needsTheirData: number;
+}
+
 export interface OpportunityItem {
   id: string;
   department: string;
@@ -73,6 +96,19 @@ export interface OpportunityItem {
   roiMonths: number;
   recommendedTools: RecommendedTool[];
   quickWin: boolean;
+  // Fields below were added 2026-10-18. All optional: reports stored before
+  // then do not have them and must still render with their stored numbers.
+  /** Best case x 0.5 (half the estimated automatable share). Computed in code. */
+  annualSavingsConservative?: number;
+  inputSources?: InputSources;
+  /** Model flag: this is the opportunity that matches their intake answer. */
+  usesIntakeHours?: boolean;
+  worthAutomating?: WorthAutomating;
+  /** 0-10, computed in code from worthAutomating. */
+  worthAutomatingScore?: number;
+  /** Build hours at BUILD_RATE_USD. implementationCostLow/High are computed from these. */
+  buildHoursLow?: number;
+  buildHoursHigh?: number;
 }
 
 export interface RoadmapItem {
@@ -81,6 +117,8 @@ export interface RoadmapItem {
   weeks: number;
   estimatedCost: number;
   estimatedSavings: number;
+  /** Added 2026-10-18. When present, estimatedCost = buildHours x BUILD_RATE_USD (computed in code). */
+  buildHours?: number;
 }
 
 export interface ImplementationPhase {
@@ -91,6 +129,7 @@ export interface ImplementationPhase {
   totalSavings: number;
 }
 
+/** @deprecated not generated since 2026-10-18; kept for old stored reports */
 export interface DashboardRecommendation {
   title: string;
   rationale: string;
@@ -98,6 +137,7 @@ export interface DashboardRecommendation {
   estimatedBuildWeeks: number;
 }
 
+/** @deprecated not generated since 2026-10-18; kept for old stored reports */
 export interface CompetitiveInsight {
   observation: string;
   implication: string;
@@ -107,13 +147,17 @@ export interface CompetitiveInsight {
 export interface AuditReportData {
   executiveSummary: {
     headline: string;
+    /** Sum of best-case opportunity savings (kept for back-compat). */
     totalAnnualSavings: number;
+    /** Sum of conservative opportunity savings. Added 2026-10-18; missing on older reports. */
+    totalAnnualSavingsConservative?: number;
     quickWinSavings: number;
     topOpportunity: string;
     urgencyNote: string;
     confidenceStatement: string;
   };
-  companySnapshot: {
+  /** @deprecated not generated since 2026-10-18; kept for old stored reports */
+  companySnapshot?: {
     inferredModel: string;
     inferredSize: string;
     keyStrengths: string[];
@@ -128,12 +172,16 @@ export interface AuditReportData {
     phase2: ImplementationPhase;
     phase3: ImplementationPhase;
   };
-  dashboardRecommendations: DashboardRecommendation[];
-  competitiveInsights: CompetitiveInsight[];
+  /** @deprecated not generated since 2026-10-18; kept for old stored reports */
+  dashboardRecommendations?: DashboardRecommendation[];
+  /** @deprecated not generated since 2026-10-18; kept for old stored reports */
+  competitiveInsights?: CompetitiveInsight[];
   nextSteps: {
     immediate: string[];
-    shortTerm: string[];
-    callToAction: string;
+    /** @deprecated not generated since 2026-10-18; kept for old stored reports */
+    shortTerm?: string[];
+    /** @deprecated not generated since 2026-10-18; kept for old stored reports */
+    callToAction?: string;
   };
 }
 
@@ -145,6 +193,9 @@ export interface ProposalOpportunityFrame {
   proposedApproach: string;
   estimatedSavings: number;
   timelineWeeks: number;
+  /** Copied in code from the audit opportunity (never model text). Added 2026-10-18. */
+  buildHoursLow?: number;
+  buildHoursHigh?: number;
 }
 
 export interface ProposalContent {

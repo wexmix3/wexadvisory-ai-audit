@@ -1,0 +1,284 @@
+// Every number in an audit report that can be computed is computed here, not
+// by the model. The model supplies the inputs (hours, rate, automatable share,
+// build hours, worth-automating facts); this module derives savings, ranges,
+// costs, payback, quick-win flags, roadmap totals and the headline figure.
+//
+// Pure functions with type-only imports, so the check script can load this
+// file directly: node --experimental-strip-types scripts/check-opportunity-math.ts
+
+import type {
+  AuditReportData,
+  ImplementationPhase,
+  InputSources,
+  OpportunityItem,
+  WorthAutomating,
+} from '../../types/audit';
+
+/** Conservative case assumes half the estimated automatable share. */
+export const CONSERVATIVE_SHARE = 0.5;
+/** Weeks per month used to turn their hours a week into hours a month. */
+export const WEEKS_PER_MONTH = 4.33;
+export const QUICK_WIN_MAX_WEEKS = 4;
+export const QUICK_WIN_MAX_COST_USD = 5000;
+export const WORTH_AUTOMATING_MIN_SCORE = 6;
+/** Stated hours vs hours implied by minutesPerRun x runsPerMonth: flag beyond this factor. */
+export const HOURS_CONSISTENCY_FACTOR = 3;
+
+export interface OpportunityMathOptions {
+  /** BUILD_RATE_USD from lib/proposal/terms.ts. Passed in so this file has no runtime imports. */
+  buildRateUsd: number;
+  /** SnapshotIntake.hoursPerWeek, already validated (0 < h <= 168) or undefined. */
+  intakeHoursPerWeek?: number;
+}
+
+const BENCHMARK = 'industry benchmark estimate' as const;
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function validHours(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 168;
+}
+
+function clamp02(v: unknown): number {
+  return Math.min(2, Math.max(0, num(v)));
+}
+
+export function fmtShort(n: number): string {
+  return n >= 1000000 ? `$${(n / 1000000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
+}
+
+/** "$143K-$287K" when the conservative figure exists, else the old single figure. */
+export function fmtRange(best: number, conservative?: number): string {
+  if (typeof conservative !== 'number' || !Number.isFinite(conservative)) return fmtShort(best);
+  return `${fmtShort(conservative)}-${fmtShort(best)}`;
+}
+
+// ── Worth-automating score ────────────────────────────────────────────────────
+
+export function computeWorthAutomatingScore(w: WorthAutomating): number {
+  const minutes = num(w.minutesPerRun);
+  const runs = num(w.runsPerMonth);
+  const timePoints = minutes >= 5 ? 2 : minutes >= 0.5 ? 1 : 0;
+  const repeatPoints = runs >= 20 ? 2 : runs >= 5 ? 1 : 0;
+  return timePoints + repeatPoints + clamp02(w.skillGap) + clamp02(w.mistakeCost) + clamp02(w.needsTheirData);
+}
+
+/** True when the opportunity has worth-automating facts and they fail the bar. */
+export function failsWorthAutomating(opp: OpportunityItem): boolean {
+  if (!opp.worthAutomating) return false;
+  const score = opp.worthAutomatingScore ?? computeWorthAutomatingScore(opp.worthAutomating);
+  return score < WORTH_AUTOMATING_MIN_SCORE || num(opp.worthAutomating.needsTheirData) < 1;
+}
+
+// ── Per-opportunity math ──────────────────────────────────────────────────────
+
+function verifyOne(opp: OpportunityItem, opts: OpportunityMathOptions, applyIntakeHours: boolean): OpportunityItem {
+  let out: OpportunityItem = { ...opp };
+
+  // Their own hours replace the model's guess on the one matching opportunity.
+  // Their number is the whole task, so it counts once (one person).
+  if (applyIntakeHours && validHours(opts.intakeHoursPerWeek)) {
+    out.fteCountAffected = 1;
+    out.hoursPerMonth = Math.round(opts.intakeHoursPerWeek * WEEKS_PER_MONTH);
+  }
+
+  const hours = num(out.hoursPerMonth);
+  const rate = num(out.fullyLoadedHourlyRate);
+  const ftes = num(out.fteCountAffected) || 1;
+  const ceiling = num(out.automationCeilingPct);
+
+  // Best case. Same rule as before 2026-10-18: keep the model's figure when it
+  // is within 20% of the math, otherwise (or when their hours were applied)
+  // override with the math.
+  const annualLaborCost = hours * rate * ftes * 12;
+  const computedSavings = Math.round(annualLaborCost * (ceiling / 100));
+  const claimedSavings = num(out.annualSavings);
+  const deviation = claimedSavings > 0 ? Math.abs(claimedSavings - computedSavings) / claimedSavings : 1;
+  if (applyIntakeHours || deviation > 0.2 || claimedSavings === 0) {
+    if (!applyIntakeHours) {
+      console.log(`[verify] ${out.id}: claimed $${claimedSavings} -> corrected to $${computedSavings}`);
+    }
+    out = { ...out, annualLaborCost: Math.round(annualLaborCost), annualSavings: computedSavings };
+  }
+
+  out.annualSavingsConservative = Math.round(num(out.annualSavings) * CONSERVATIVE_SHARE);
+
+  const inputSources: InputSources = {
+    hours: applyIntakeHours ? 'from you' : BENCHMARK,
+    rate: BENCHMARK,
+    automationShare: BENCHMARK,
+  };
+  out.inputSources = inputSources;
+  out.usesIntakeHours = applyIntakeHours;
+
+  if (out.worthAutomating) {
+    out.worthAutomatingScore = computeWorthAutomatingScore(out.worthAutomating);
+  }
+
+  // Cost and payback from build hours. Reports without build hours (stored
+  // before 2026-10-18) keep their stored cost and payback.
+  const lowH = Number(out.buildHoursLow);
+  const highH = Number(out.buildHoursHigh);
+  if (Number.isFinite(lowH) && Number.isFinite(highH) && lowH > 0 && highH > 0) {
+    const [lo, hi] = lowH <= highH ? [lowH, highH] : [highH, lowH];
+    out.buildHoursLow = lo;
+    out.buildHoursHigh = hi;
+    out.implementationCostLow = Math.round(lo * opts.buildRateUsd);
+    out.implementationCostHigh = Math.round(hi * opts.buildRateUsd);
+    const monthlyConservative = out.annualSavingsConservative / 12;
+    if (monthlyConservative > 0) {
+      out.roiMonths = Math.max(1, Math.ceil(out.implementationCostHigh / monthlyConservative));
+    }
+  }
+
+  out.quickWin =
+    out.complexity === 'low' &&
+    num(out.implementationWeeks) <= QUICK_WIN_MAX_WEEKS &&
+    Number.isFinite(Number(out.implementationCostHigh)) &&
+    num(out.implementationCostHigh) <= QUICK_WIN_MAX_COST_USD;
+
+  return out;
+}
+
+function verifyPhase(phase: ImplementationPhase | undefined, rate: number): ImplementationPhase | undefined {
+  if (!phase || !Array.isArray(phase.items) || phase.items.length === 0) return phase;
+  const hasHours = (h: unknown) => typeof h === 'number' && Number.isFinite(h) && h >= 0;
+  if (!phase.items.some((it) => hasHours(it.buildHours))) return phase;
+  const items = phase.items.map((it) =>
+    hasHours(it.buildHours) ? { ...it, estimatedCost: Math.round((it.buildHours as number) * rate) } : it,
+  );
+  const totalInvestment = items.reduce((sum, it) => sum + num(it.estimatedCost), 0);
+  return { ...phase, items, totalInvestment };
+}
+
+// ── Totals + headline ─────────────────────────────────────────────────────────
+
+const MONEY = /\$[\d,]+(?:\.\d+)?[KkMm]?(?:\s*(?:-|–|—|to)\s*\$[\d,]+(?:\.\d+)?[KkMm]?)?/;
+
+/** Re-sorts opportunities, recomputes totals and rewrites the headline's first $ figure (or range). */
+export function finalizeTotals(data: AuditReportData, opportunities: OpportunityItem[]): AuditReportData {
+  const opps = [...opportunities].sort((a, b) => (b.annualSavings ?? 0) - (a.annualSavings ?? 0));
+  const totalAnnualSavings = opps.reduce((sum, o) => sum + num(o.annualSavings), 0);
+  const hasConservative = opps.length > 0 && opps.every((o) => typeof o.annualSavingsConservative === 'number');
+  const totalAnnualSavingsConservative = hasConservative
+    ? opps.reduce((sum, o) => sum + num(o.annualSavingsConservative), 0)
+    : undefined;
+  const quickWinSavings = opps.filter((o) => o.quickWin).reduce((sum, o) => sum + num(o.annualSavings), 0);
+
+  const summary = data.executiveSummary ?? ({} as AuditReportData['executiveSummary']);
+  const headline = (summary.headline || '').replace(MONEY, fmtRange(totalAnnualSavings, totalAnnualSavingsConservative));
+
+  return {
+    ...data,
+    opportunities: opps,
+    executiveSummary: {
+      ...summary,
+      headline,
+      totalAnnualSavings,
+      ...(totalAnnualSavingsConservative !== undefined ? { totalAnnualSavingsConservative } : {}),
+      quickWinSavings,
+    },
+  };
+}
+
+/**
+ * Recompute every derived number from the model's inputs. Safe on old-shape
+ * reports (no build hours, no worth-automating facts): their costs, payback
+ * and roadmap totals are kept as stored.
+ */
+export function verifyOpportunityMath(data: AuditReportData, opts: OpportunityMathOptions): AuditReportData {
+  if (!Array.isArray(data.opportunities)) return data;
+
+  // Exactly one opportunity takes their stated hours: the first one flagged.
+  const intakeIdx = validHours(opts.intakeHoursPerWeek)
+    ? data.opportunities.findIndex((o) => o.usesIntakeHours === true)
+    : -1;
+
+  const verified = data.opportunities.map((opp, i) => verifyOne(opp, opts, i === intakeIdx));
+
+  const roadmap = data.implementationRoadmap;
+  const withRoadmap: AuditReportData = roadmap
+    ? {
+        ...data,
+        implementationRoadmap: {
+          ...roadmap,
+          phase1: verifyPhase(roadmap.phase1, opts.buildRateUsd) as ImplementationPhase,
+          phase2: verifyPhase(roadmap.phase2, opts.buildRateUsd) as ImplementationPhase,
+          phase3: verifyPhase(roadmap.phase3, opts.buildRateUsd) as ImplementationPhase,
+        },
+      }
+    : data;
+
+  return finalizeTotals(withRoadmap, verified);
+}
+
+/**
+ * Drop opportunities that fail the worth-automating bar, but only when at
+ * least 3 remain. Otherwise the report keeps them (the gate issue is still
+ * recorded by the caller).
+ */
+export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditReportData; dropped: string[] } {
+  const opps = data.opportunities ?? [];
+  const keep = opps.filter((o) => !failsWorthAutomating(o));
+  if (keep.length === opps.length || keep.length < 3) return { data, dropped: [] };
+  const dropped = opps.filter((o) => failsWorthAutomating(o)).map((o) => o.title);
+  return { data: finalizeTotals(data, keep), dropped };
+}
+
+// ── Quality issues computed from the numbers ──────────────────────────────────
+
+/** Gate issues about the computed fields. checkAuditQuality appends these. */
+export function opportunityMathIssues(data: AuditReportData, intakeHoursPerWeek?: number): string[] {
+  const issues: string[] = [];
+  const opps = data.opportunities ?? [];
+
+  const missingWorth = opps.filter((o) => !o.worthAutomating);
+  if (missingWorth.length > 0) {
+    issues.push(`${missingWorth.length} opportunit${missingWorth.length > 1 ? 'ies are' : 'y is'} missing worthAutomating, fill it for every opportunity`);
+  }
+
+  const unworthy = opps.filter(failsWorthAutomating);
+  if (unworthy.length > 0) {
+    issues.push(
+      `not worth automating (score under ${WORTH_AUTOMATING_MIN_SCORE} of 10, or needsTheirData under 1): ${unworthy.map((o) => `"${o.title}"`).join(', ')}. Replace with workflows a person spends real time on repeatedly that need the company's own data or systems`,
+    );
+  }
+
+  const inconsistent = opps.filter((o) => {
+    if (!o.worthAutomating) return false;
+    const implied = (num(o.worthAutomating.minutesPerRun) * num(o.worthAutomating.runsPerMonth)) / 60;
+    const stated = num(o.hoursPerMonth) * (num(o.fteCountAffected) || 1);
+    if (implied <= 0 && stated <= 0) return false;
+    if (implied <= 0 || stated <= 0) return true;
+    const ratio = implied > stated ? implied / stated : stated / implied;
+    return ratio > HOURS_CONSISTENCY_FACTOR;
+  });
+  if (inconsistent.length > 0) {
+    issues.push(
+      `inconsistent numbers: minutesPerRun x runsPerMonth / 60 is more than ${HOURS_CONSISTENCY_FACTOR}x off from hoursPerMonth x fteCountAffected for ${inconsistent.map((o) => `"${o.title}"`).join(', ')}`,
+    );
+  }
+
+  const missingBuild = opps.filter(
+    (o) => !(Number(o.buildHoursLow) > 0 && Number(o.buildHoursHigh) > 0),
+  );
+  if (missingBuild.length > 0) {
+    issues.push(`${missingBuild.length} opportunit${missingBuild.length > 1 ? 'ies are' : 'y is'} missing buildHoursLow/buildHoursHigh`);
+  }
+
+  if (validHours(intakeHoursPerWeek)) {
+    const flagged = opps.filter((o) => o.usesIntakeHours === true);
+    if (flagged.length === 0) {
+      issues.push(
+        `their stated ${intakeHoursPerWeek} hours/week must be used on the opportunity matching their answer: set usesIntakeHours true on exactly that one`,
+      );
+    } else if (flagged.length > 1) {
+      issues.push(`usesIntakeHours is true on ${flagged.length} opportunities, it must be true on exactly one`);
+    }
+  }
+
+  return issues;
+}
