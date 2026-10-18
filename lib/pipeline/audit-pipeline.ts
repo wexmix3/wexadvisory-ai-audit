@@ -8,7 +8,8 @@ import {
   extractManualProcessSignals,
 } from '@/lib/research/tech-detector';
 import { classifyBusiness } from '@/lib/ai/classify';
-import { synthesizeAudit, checkAuditQuality, scoreAuditQualityLLM } from '@/lib/ai/synthesize';
+import { synthesizeAudit, scoreAuditQualityLLM } from '@/lib/ai/synthesize';
+import { fmtRange } from '@/lib/ai/opportunity-math';
 import { getBenchmark, formatBenchmarkForPrompt } from '@/lib/benchmarks/industry-data';
 import { computeScores } from '@/lib/scoring/score-engine';
 import type { SnapshotIntake } from '@/types/audit';
@@ -96,7 +97,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       ? `Monthly organic traffic: ~${traffic.monthlyTraffic?.toLocaleString() ?? 'unknown'} visits, ${traffic.organicKeywords?.toLocaleString() ?? 'unknown'} keywords ranked`
       : '';
 
-    const { data: reportData, qualityRetryUsed, preRetryIssues } = await synthesizeAudit({
+    const { data: reportData, qualityRetryUsed, preRetryIssues, finalIssues, droppedOpportunities } = await synthesizeAudit({
       intake,
       classification,
       webContent,
@@ -111,7 +112,8 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
     const [llmQualityResult] = await Promise.allSettled([
       scoreAuditQualityLLM(reportData, intake.companyName),
     ]);
-    const gateResult = checkAuditQuality(reportData);
+    // Gate result on the delivered report, computed once inside synthesizeAudit.
+    const gateResult = { passed: finalIssues.length === 0, issues: finalIssues };
     const llmQuality = llmQualityResult.status === 'fulfilled' ? llmQualityResult.value : null;
 
     const evalQuality = {
@@ -125,6 +127,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       has_quick_wins: (reportData.opportunities ?? []).some(o => o.quickWin),
       quality_retry_used: qualityRetryUsed,
       pre_retry_issues: preRetryIssues,
+      dropped_opportunities: droppedOpportunities,
     };
 
     // Override Claude's scores with the deterministic score engine for consistency
@@ -144,7 +147,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
     const totalSavings = reportData.executiveSummary?.totalAnnualSavings ?? 0;
     if (totalSavings > 0) {
       reportData.scores.automationOpportunity.topFactors.push(
-        `Identified $${Math.round(totalSavings / 1000)}K/year in automatable opportunity regardless of relative score`
+        `Identified ${fmtRange(totalSavings, reportData.executiveSummary?.totalAnnualSavingsConservative)}/year in automatable opportunity regardless of relative score`
       );
     }
 
@@ -157,7 +160,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       status: 'generating', // still generating PDF
     }).eq('id', auditId);
 
-    return { reportData, classification, benchmark };
+    return { reportData, classification, benchmark, gateIssues: gateResult.issues, droppedOpportunities };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await setStatus(auditId, 'failed', { error_message: msg });

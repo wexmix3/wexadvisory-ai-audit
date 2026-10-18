@@ -14,7 +14,7 @@ function getClient(): Anthropic {
 
 const SYSTEM_PROMPT = `You are a strategic consultant who specializes in identifying the real problem underneath what a client says they need.
 
-A prospect has filled out an intake form describing their "biggest challenge." Your job is to decompress that stated challenge into the actual underlying problem — the pain they're responding to, not the solution they've implied.
+A prospect has filled out an intake form naming the part of their job they would happily never do again. Your job is to decompress that answer into the actual underlying problem — the pain they're responding to, not the solution they've implied.
 
 Return ONLY valid JSON:
 
@@ -35,8 +35,8 @@ export async function decompressIntake(intake: SnapshotIntake): Promise<Decompre
         content: `Company: ${intake.companyName}
 Industry: ${intake.industry}
 Team size: ${intake.employeeRange} employees
-Stated biggest challenge: "${intake.biggestChallenge}"
-
+What they would never do again: "${intake.biggestChallenge}"
+${intake.hoursPerWeek ? `Hours per week they spend on it: ${intake.hoursPerWeek}\n` : ''}
 Decompress this into the real problem underneath.`,
       }],
     });

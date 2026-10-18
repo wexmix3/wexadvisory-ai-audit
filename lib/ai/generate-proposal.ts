@@ -100,8 +100,8 @@ URL: ${intake.companyUrl}
 CONTACT NAME: ${intake.contactName}
 INDUSTRY: ${intake.industry}
 TEAM SIZE: ${intake.employeeRange} employees
-BIGGEST CHALLENGE: "${intake.biggestChallenge}"
-
+WHAT THEY WOULD NEVER DO AGAIN: "${intake.biggestChallenge}"
+${intake.hoursPerWeek ? `HOURS PER WEEK ON IT (their number): ${intake.hoursPerWeek}\n` : ''}
 AUDIT EXECUTIVE SUMMARY:
 - Headline: ${reportData.executiveSummary.headline}
 - Total annual savings identified: $${reportData.executiveSummary.totalAnnualSavings.toLocaleString()}
@@ -122,6 +122,22 @@ ENGAGEMENT TERMS:
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/free-strategy-call
 
 Generate the proposal JSON. Be specific to ${intake.companyName} — reference their actual processes and tools, not generic descriptions.`;
+}
+
+// Build hours come from the audit (code-computed inputs), never from model
+// text: match each proposal opportunity to its audit opportunity by title,
+// falling back to the same position in the top 3.
+function attachBuildHours(content: ProposalContent, reportData: AuditReportData): void {
+  if (!Array.isArray(content.opportunities)) return;
+  const top3 = (reportData.opportunities ?? []).slice(0, 3);
+  const norm = (t: string) => (t ?? '').trim().toLowerCase();
+  content.opportunities = content.opportunities.map((frame, i) => {
+    const source = top3.find((o) => norm(o.title) === norm(frame.title)) ?? top3[i];
+    const low = Number(source?.buildHoursLow);
+    const high = Number(source?.buildHoursHigh);
+    if (!(low > 0 && high > 0)) return frame;
+    return { ...frame, buildHoursLow: low, buildHoursHigh: high };
+  });
 }
 
 export async function generateProposalContent(
@@ -156,6 +172,7 @@ export async function generateProposalContent(
 
   const content: ProposalContent = JSON.parse(match[0]);
   assertProposalTerms(content);
+  attachBuildHours(content, reportData);
   return {
     content,
     inputTokens: message.usage.input_tokens,
