@@ -21,6 +21,10 @@ const DGRAY  = '#475569';
 const WHITE  = '#FFFFFF';
 const GREEN  = '#22C55E';
 const RED    = '#EF4444';
+// Hairline rules on the navy cover. Solid hex, not rgba(): react-pdf draws a
+// semi-transparent border colour as bright green (the cover footer rule showed
+// up green in every render). This is white at ~10% over NAVY.
+const COVER_RULE = '#222D3E';
 
 // All strings in this file must use ASCII only — Helvetica in react-pdf
 // does not support non-ASCII glyphs (arrows, ≤, ×, etc. all render as garbage).
@@ -31,15 +35,23 @@ const s = StyleSheet.create({
   // paddingTop on the Page (not on each section) so react-pdf applies it to
   // auto-generated continuation pages too. No justifyContent: content must be
   // top-anchored — 'center' produced blank bands above short pages.
-  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingTop: 36, paddingBottom: 44 },
+  // Side padding lives on the Page too: sections render as direct children of
+  // the Page (no wrapper View), because react-pdf only honours a section
+  // head's minPresenceAhead when the head has earlier siblings to break after.
+  page:      { backgroundColor: WHITE, fontFamily: 'Helvetica', paddingTop: 36, paddingBottom: 40, paddingHorizontal: 40 },
   coverPage: { backgroundColor: NAVY, fontFamily: 'Helvetica' },
 
   // ── Cover ───────────────────────────────────────────────────
-  coverBody:     { padding: '48 48 32 48', flex: 1 },
+  // Three groups (title / headline number / top 3) spread down the cover with
+  // space-between: the slack a short cover has is split into two even gaps
+  // between groups instead of one dead band under the last group (top-anchored)
+  // or one hollow band in the middle (top 3 alone pushed to the bottom).
+  coverBody:     { padding: '48 48 36 48', flex: 1, justifyContent: 'space-between' },
+  coverGap:      { marginBottom: 24 },
   coverEyebrow:  { color: GOLD, fontSize: 9, letterSpacing: 2, marginBottom: 28 },
   coverTitle:    { color: WHITE, fontSize: 30, fontFamily: 'Helvetica-Bold', marginBottom: 6 },
   coverCompany:  { color: GOLD, fontSize: 22, fontFamily: 'Helvetica-Bold', marginBottom: 3 },
-  coverUrl:      { color: MGRAY, fontSize: 10, marginBottom: 32 },
+  coverUrl:      { color: MGRAY, fontSize: 10 },
 
   coverSavingsBox:   { backgroundColor: 'rgba(200,168,75,0.12)', borderRadius: 8, padding: '20 22', marginBottom: 16, borderLeftWidth: 3, borderLeftColor: GOLD },
   coverSavingsLabel: { color: MGRAY, fontSize: 8, letterSpacing: 1.5, marginBottom: 6 },
@@ -48,25 +60,25 @@ const s = StyleSheet.create({
   coverRangeNote:    { color: MGRAY, fontSize: 8, marginBottom: 8 },
   coverHeadline:     { color: WHITE, fontSize: 12, lineHeight: 1.5 },
 
-  coverConfidence: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '10 14', marginBottom: 20 },
+  coverConfidence: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '10 14' },
   coverConfText:   { color: MGRAY, fontSize: 9, lineHeight: 1.6 },
 
   coverOppsLabel:  { color: GOLD, fontSize: 8, letterSpacing: 1.5, marginBottom: 10 },
-  coverOppRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  coverOppRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 1, borderTopColor: COVER_RULE },
   coverOppRank:    { width: 20, height: 20, borderRadius: 10, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   coverOppRankTxt: { color: NAVY, fontSize: 8, fontFamily: 'Helvetica-Bold' },
   coverOppText:    { flex: 1, color: WHITE, fontSize: 9.5, lineHeight: 1.4 },
   coverOppSavings: { color: GREEN, fontSize: 10, fontFamily: 'Helvetica-Bold', marginLeft: 8 },
 
-  coverFooter:     { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', padding: '14 48', flexDirection: 'row', justifyContent: 'space-between' },
+  coverFooter:     { borderTopWidth: 1, borderTopColor: COVER_RULE, padding: '14 48', flexDirection: 'row', justifyContent: 'space-between' },
   coverFooterTxt:  { color: MGRAY, fontSize: 8.5 },
 
   // ── Shared layout ────────────────────────────────────────────
-  sec:      { padding: '0 40' },
-  secLast:  { padding: '0 40 28 40' },
   eyebrow:  { color: GOLD, fontSize: 8, letterSpacing: 2, marginBottom: 4 },
   heading:  { color: NAVY, fontSize: 17, fontFamily: 'Helvetica-Bold', marginBottom: 14 },
-  divider:  { height: 1, backgroundColor: LGRAY, margin: '16 40' },
+  // Section head after the first: a rule + space above. It travels with its
+  // section, so it also reads correctly when it lands at the top of a page.
+  secHead:  { paddingTop: 16, borderTopWidth: 1, borderTopColor: LGRAY },
 
   // ── Executive summary ─────────────────────────────────────────
   summaryHero:     { backgroundColor: LGRAY, borderRadius: 6, padding: 16, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: GOLD },
@@ -90,43 +102,44 @@ const s = StyleSheet.create({
   scoreFactors:    { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 153, marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: LGRAY },
   scoreFactor:     { backgroundColor: LGRAY, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
   scoreFactorTxt:  { color: DGRAY, fontSize: 7.5 },
+  scoreFactorsLast:{ borderBottomWidth: 0, paddingBottom: 0 },
 
-  // ── Opportunity card (compact — fits ~2 per page) ─────────────
-  oppCard:     { marginBottom: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 7, overflow: 'hidden' },
-  oppHeader:   { backgroundColor: NAVY, padding: '9 12', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  // ── Opportunity card ──────────────────────────────────────────
+  oppCard:     { marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 7, overflow: 'hidden' },
+  oppHeader:   { backgroundColor: NAVY, padding: '8 12', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   oppTitle:    { color: WHITE, fontSize: 10, fontFamily: 'Helvetica-Bold', flex: 1, marginRight: 8, lineHeight: 1.35 },
   oppBadges:   { flexDirection: 'row', gap: 4, flexShrink: 0 },
   oppBadge:    { borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 },
   oppBadgeTxt: { fontSize: 7, fontFamily: 'Helvetica-Bold' },
-  oppBody:     { padding: '10 12' },
+  oppBody:     { padding: '9 12' },
 
-  oppCols:     { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  oppCols:     { flexDirection: 'row', gap: 10, marginBottom: 8 },
   oppCol:      { flex: 1 },
   oppColLbl:   { color: DGRAY, fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5, marginBottom: 3 },
-  oppColTxt:   { color: NAVY, fontSize: 8.5, lineHeight: 1.45 },
+  oppColTxt:   { color: NAVY, fontSize: 8.5, lineHeight: 1.4 },
 
-  mathBox:     { backgroundColor: '#EFF6FF', borderRadius: 5, padding: '8 10', marginBottom: 9, borderLeftWidth: 2, borderLeftColor: '#3B82F6' },
+  mathBox:     { backgroundColor: '#EFF6FF', borderRadius: 5, padding: '7 10', marginBottom: 8, borderLeftWidth: 2, borderLeftColor: '#3B82F6' },
   mathLbl:     { color: '#1E40AF', fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5, marginBottom: 4 },
   mathFormula: { color: NAVY, fontSize: 8.5, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
   mathResult:  { color: GREEN, fontSize: 10, fontFamily: 'Helvetica-Bold' },
   mathNote:    { color: DGRAY, fontSize: 7.5, marginTop: 3 },
 
-  implRow:     { flexDirection: 'row', gap: 5, marginBottom: 8 },
+  implRow:     { flexDirection: 'row', gap: 5, marginBottom: 7 },
   implPill:    { flex: 1, backgroundColor: LGRAY, borderRadius: 4, padding: '5 6', alignItems: 'center' },
   implLbl:     { color: DGRAY, fontSize: 6.5, letterSpacing: 0.2 },
   implVal:     { color: NAVY, fontSize: 9, fontFamily: 'Helvetica-Bold', marginTop: 1 },
 
-  toolsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  toolsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   toolPill:    { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
   toolPillTxt: { color: '#1D4ED8', fontSize: 7 },
 
   // ── Roadmap ──────────────────────────────────────────────────
-  phaseCols:    { flexDirection: 'row', width: '100%', alignItems: 'flex-start' },
+  phaseCols:    { flexDirection: 'row', width: '100%', alignItems: 'stretch', marginBottom: 12 },
   phaseBox:     { width: '32%', marginRight: '2%', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, overflow: 'hidden' },
   phaseHead:    { padding: '8 10', alignItems: 'center' },
   phaseTitle:   { color: WHITE, fontSize: 8.5, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
   phaseDur:     { color: 'rgba(255,255,255,0.7)', fontSize: 7.5, marginTop: 1 },
-  phaseBody:    { padding: '8 10' },
+  phaseBody:    { padding: '8 10', flexGrow: 1 },
   phaseItem:    { marginBottom: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: LGRAY },
   phaseItemLast:{ marginBottom: 0, paddingBottom: 0, borderBottomWidth: 0 },
   phaseItemTtl: { color: NAVY, fontSize: 8, fontFamily: 'Helvetica-Bold', marginBottom: 1 },
@@ -137,10 +150,10 @@ const s = StyleSheet.create({
   phaseTotVal:  { color: NAVY, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
   // ── Next steps + CTA ─────────────────────────────────────────
-  stepItem:    { flexDirection: 'row', gap: 8, marginBottom: 7 },
+  stepItem:    { flexDirection: 'row', gap: 8, marginBottom: 6 },
   stepBullet:  { color: GOLD, fontSize: 11, fontFamily: 'Helvetica-Bold', marginTop: -2 },
   stepTxt:     { color: NAVY, fontSize: 9.5, flex: 1, lineHeight: 1.5 },
-  ctaBox:      { backgroundColor: NAVY, borderRadius: 8, padding: '20 24', alignItems: 'center' },
+  ctaBox:      { backgroundColor: NAVY, borderRadius: 8, padding: '18 24', alignItems: 'center' },
   ctaTitle:    { color: WHITE, fontSize: 14, fontFamily: 'Helvetica-Bold', marginBottom: 6, textAlign: 'center' },
   ctaBody:     { color: MGRAY, fontSize: 9, textAlign: 'center', marginBottom: 14, lineHeight: 1.5 },
   ctaBtn:      { backgroundColor: GOLD, borderRadius: 5, paddingHorizontal: 18, paddingVertical: 9 },
@@ -205,6 +218,52 @@ function Footer({ company }: { company: string }) {
     <View style={s.footer} fixed>
       <Text style={s.footerTxt}>{company} - AI Opportunity Snapshot</Text>
       <Text style={s.footerGold}>Wex Advisory  |  wexadvisory.com</Text>
+    </View>
+  );
+}
+
+type Score = AuditReportData['scores']['aiReadiness'];
+
+function ScoreItem({ label, sc, last }: { label: string; sc: Score; last: boolean }) {
+  return (
+    <>
+      <View style={s.scoreRow}>
+        <Text style={s.scoreLbl}>{label}</Text>
+        <View style={s.scoreBar}>
+          <View style={[s.scoreBarFill, { width: `${sc.score}%`, backgroundColor: barColor(sc.score) }]} />
+        </View>
+        <Text style={s.scoreNum}>{sc.score}</Text>
+        <Text style={s.scorePct}>Top {100 - sc.percentile}%</Text>
+      </View>
+      <Text style={s.scoreVerdict}>{sc.verdict}</Text>
+      {'topFactors' in sc && (
+        <View style={last ? [s.scoreFactors, s.scoreFactorsLast] : s.scoreFactors}>
+          {(sc as { topFactors: string[] }).topFactors.map((f, i) => (
+            <View key={i} style={s.scoreFactor}>
+              <Text style={s.scoreFactorTxt}>{f}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </>
+  );
+}
+
+// A section's head is glued to the section's first unbreakable unit (its
+// children) in one wrap={false} block, so the head can never be stranded at
+// the bottom of a page while that unit moves on. minPresenceAhead can't do
+// this: it only reserves a fixed number of points, and the units that follow
+// (a card, the roadmap row) are taller than any safe fixed reserve.
+function SectionHead({ eyebrow, title, first = false, keepTogether = true, children }: {
+  eyebrow: string; title: string; first?: boolean; keepTogether?: boolean; children?: React.ReactNode;
+}) {
+  return (
+    // A block too tall to keep together starts a fresh page instead, so it
+    // splits once, with as much of it as possible under its head.
+    <View style={first ? undefined : s.secHead} wrap={!keepTogether} break={!keepTogether}>
+      <Text style={s.eyebrow}>{eyebrow}</Text>
+      <Text style={s.heading}>{title}</Text>
+      {children}
     </View>
   );
 }
@@ -319,6 +378,21 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
   );
 }
 
+// Rough upper bound (pt) on the roadmap row's height, from its text. Column
+// body is ~145pt wide: ~33 chars/line for 8pt bold titles, ~37 for 7.5pt
+// descriptions. Deliberately overestimates (it ignores hyphenation).
+function estimateRoadmapHeight(roadmap: AuditReportData['implementationRoadmap']): number {
+  const lines = (text: string | undefined, perLine: number) => Math.max(1, Math.ceil((text ?? '').length / perLine));
+  const column = (phase: AuditReportData['implementationRoadmap']['phase1']) =>
+    (phase.items ?? []).reduce((h, item) => h + lines(item.title, 33) * 9.6 + lines(item.description, 37) * 10.5 + 12, 0);
+  return 84 + Math.max(column(roadmap.phase1), column(roadmap.phase2), column(roadmap.phase3));
+}
+
+// Above this the head + roadmap block could exceed one page's content height
+// (~766pt). An unbreakable block taller than a page makes react-pdf overlap
+// everything on that page, so such a roadmap is allowed to split instead.
+const ROADMAP_KEEP_TOGETHER_MAX = 680;
+
 function Roadmap({ implementationRoadmap }: { implementationRoadmap: AuditReportData['implementationRoadmap'] }) {
   return (
     <View style={s.phaseCols}>
@@ -357,12 +431,11 @@ function Roadmap({ implementationRoadmap }: { implementationRoadmap: AuditReport
 }
 
 function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }) {
+  // One unbreakable closing block (head + steps + CTA): split anywhere, the
+  // CTA box ends up alone on the last page.
   return (
-    <View style={s.secLast}>
-      <Text style={s.eyebrow}>NEXT STEPS</Text>
-      <Text style={[s.heading, { marginBottom: 10 }]}>What to Do This Week</Text>
-
-      <View style={{ marginBottom: 16 }}>
+    <SectionHead eyebrow="NEXT STEPS" title="What to Do This Week">
+      <View style={{ marginBottom: 12 }}>
         {(nextSteps?.immediate ?? []).map((step, i) => (
           <View key={i} style={s.stepItem}>
             <Text style={s.stepBullet}>-&gt;</Text>
@@ -384,29 +457,24 @@ function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }
         </Link>
         <Text style={s.ctaMeta}>30 minutes  |  Free  |  Your numbers replace our estimates</Text>
       </View>
-    </View>
+    </SectionHead>
   );
 }
 
 function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) {
   const { executiveSummary, scores, opportunities, implementationRoadmap, nextSteps } = report;
   const top3 = opportunities.slice(0, 3);
+  const scoreItems: { label: string; sc: Score }[] = [
+    { label: 'AI Readiness',           sc: scores.aiReadiness },
+    { label: 'Automation Opportunity', sc: scores.automationOpportunity },
+    { label: 'Data Visibility',        sc: scores.dataVisibility },
+    { label: 'Revenue Acceleration',   sc: scores.revenueAcceleration },
+    { label: 'Overall Maturity',       sc: scores.overallMaturity },
+  ];
   const hasRange = typeof executiveSummary.totalAnnualSavingsConservative === 'number';
   const quickWinConservative = hasRange
     ? opportunities.filter((o) => o.quickWin).reduce((sum, o) => sum + (o.annualSavingsConservative ?? 0), 0)
     : undefined;
-
-  // Explicit pagination — 2 opportunity cards per page, then the roadmap and
-  // next steps always start a fresh page. An earlier version folded the
-  // roadmap onto the last opportunities page whenever that page held a lone
-  // card; the roadmap's height depends on LLM output, and when it didn't fit
-  // react-pdf split the 3-column row mid-column, leaving one column's totals
-  // alone on an otherwise blank page. Folding only moves the tail whitespace
-  // between pages anyway, so the deterministic layout wins.
-  const oppPages: typeof opportunities[] = [];
-  for (let i = 0; i < opportunities.length; i += 2) {
-    oppPages.push(opportunities.slice(i, i + 2));
-  }
 
   return (
     <Document
@@ -418,30 +486,34 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
       {/* ── PAGE 1: COVER ─────────────────────────────────────── */}
       <Page size="A4" style={s.coverPage}>
         <View style={s.coverBody}>
-          <Text style={s.coverEyebrow}>WEX ADVISORY  |  CONFIDENTIAL</Text>
-          <Text style={s.coverTitle}>AI Opportunity{'\n'}Snapshot</Text>
-          <Text style={s.coverCompany}>{companyName}</Text>
-          <Text style={s.coverUrl}>{companyUrl}</Text>
-
-          {/* Big savings number */}
-          <View style={s.coverSavingsBox}>
-            <Text style={s.coverSavingsLabel}>ESTIMATED ANNUAL SAVINGS POTENTIAL</Text>
-            {typeof executiveSummary.totalAnnualSavingsConservative === 'number' ? (
-              <>
-                <Text style={s.coverSavingsRange}>
-                  {fmtRange(executiveSummary.totalAnnualSavings, executiveSummary.totalAnnualSavingsConservative)}
-                </Text>
-                <Text style={s.coverRangeNote}>CONSERVATIVE TO BEST CASE</Text>
-              </>
-            ) : (
-              <Text style={s.coverSavingsNum}>{fmt(executiveSummary.totalAnnualSavings)}</Text>
-            )}
-            <Text style={s.coverHeadline}>{executiveSummary.headline}</Text>
+          <View style={s.coverGap}>
+            <Text style={s.coverEyebrow}>WEX ADVISORY  |  CONFIDENTIAL</Text>
+            <Text style={s.coverTitle}>AI Opportunity{'\n'}Snapshot</Text>
+            <Text style={s.coverCompany}>{companyName}</Text>
+            <Text style={s.coverUrl}>{companyUrl}</Text>
           </View>
 
-          {/* Confidence statement */}
-          <View style={s.coverConfidence}>
-            <Text style={s.coverConfText}>{executiveSummary.confidenceStatement}</Text>
+          <View style={s.coverGap}>
+            {/* Big savings number */}
+            <View style={s.coverSavingsBox}>
+              <Text style={s.coverSavingsLabel}>ESTIMATED ANNUAL SAVINGS POTENTIAL</Text>
+              {typeof executiveSummary.totalAnnualSavingsConservative === 'number' ? (
+                <>
+                  <Text style={s.coverSavingsRange}>
+                    {fmtRange(executiveSummary.totalAnnualSavings, executiveSummary.totalAnnualSavingsConservative)}
+                  </Text>
+                  <Text style={s.coverRangeNote}>CONSERVATIVE TO BEST CASE</Text>
+                </>
+              ) : (
+                <Text style={s.coverSavingsNum}>{fmt(executiveSummary.totalAnnualSavings)}</Text>
+              )}
+              <Text style={s.coverHeadline}>{executiveSummary.headline}</Text>
+            </View>
+
+            {/* Confidence statement */}
+            <View style={s.coverConfidence}>
+              <Text style={s.coverConfText}>{executiveSummary.confidenceStatement}</Text>
+            </View>
           </View>
 
           {/* Top 3 opportunities preview */}
@@ -467,17 +539,24 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
         </View>
       </Page>
 
-      {/* ── PAGE 2: EXECUTIVE SUMMARY ─────────────────────────── */}
+      {/* ── CONTENT: one flowing page sequence ─────────────────────
+          Sections used to each force a fresh <Page> (exec summary, scorecard,
+          2 opportunity cards per page, roadmap + CTA), so every short section
+          left its page's lower third to half blank, and a pair of tall cards
+          overflowed into a lone-card page. Everything after the cover now
+          flows: units that must not split (info boxes, score rows, cards, the
+          roadmap row, the CTA) are wrap={false}, and every section head keeps
+          enough of its section with it (minPresenceAhead) so it never orphans
+          at the bottom of a page. */}
       <Page size="A4" style={s.page}>
-        <View style={s.sec}>
-          <Text style={s.eyebrow}>EXECUTIVE SUMMARY</Text>
-          <Text style={s.heading}>What We Found</Text>
+        <>
+          <SectionHead eyebrow="EXECUTIVE SUMMARY" title="What We Found" first>
+            <View style={s.summaryHero}>
+              <Text style={s.summaryHeroText}>{executiveSummary.headline}</Text>
+            </View>
+          </SectionHead>
 
-          <View style={s.summaryHero}>
-            <Text style={s.summaryHeroText}>{executiveSummary.headline}</Text>
-          </View>
-
-          <View style={s.metricsRow}>
+          <View style={s.metricsRow} wrap={false}>
             <View style={s.metricBox}>
               <Text style={s.metricVal}>{fmtRange(executiveSummary.totalAnnualSavings, executiveSummary.totalAnnualSavingsConservative)}</Text>
               <Text style={s.metricLbl}>TOTAL ANNUAL SAVINGS</Text>
@@ -493,7 +572,7 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
           </View>
 
           {hasRange && (
-            <View style={s.infoBox}>
+            <View style={s.infoBox} wrap={false}>
               <Text style={s.infoLbl}>HOW TO READ THE RANGE</Text>
               <Text style={s.infoTxt}>
                 Conservative assumes half the estimated automatable share. Every input marked estimate is ours,
@@ -502,12 +581,12 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
             </View>
           )}
 
-          <View style={s.infoBox}>
+          <View style={s.infoBox} wrap={false}>
             <Text style={s.infoLbl}>WHY ACT NOW</Text>
             <Text style={s.infoTxt}>{executiveSummary.urgencyNote}</Text>
           </View>
 
-          <View style={s.infoBox}>
+          <View style={s.infoBox} wrap={false}>
             <Text style={s.infoLbl}>METHODOLOGY</Text>
             <Text style={s.infoTxt}>
               This analysis was produced by scraping {companyUrl}, reviewing job postings and public signals,
@@ -517,86 +596,48 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
             </Text>
           </View>
 
-          <View style={s.infoBox}>
+          <View style={s.infoBox} wrap={false}>
             <Text style={s.infoLbl}>DATA SOURCES</Text>
             <Text style={s.infoTxt}>
               Website content  |  Job posting signals  |  Public review sites  |  Technology detection  |
               Industry wage benchmarks (BLS Occupational Outlook)  |  Peer-company performance benchmarks
             </Text>
           </View>
-        </View>
-        <Footer company={companyName} />
-      </Page>
+        </>
 
-      {/* ── PAGE 3: AI MATURITY SCORECARD ─────────────────────── */}
-      <Page size="A4" style={s.page}>
-        <View style={s.sec}>
-          <Text style={s.eyebrow}>AI MATURITY SCORECARD</Text>
-          <Text style={s.heading}>How You Compare to Industry Peers</Text>
-
-          {([
-            ['AI Readiness',         scores.aiReadiness],
-            ['Automation Opportunity',scores.automationOpportunity],
-            ['Data Visibility',      scores.dataVisibility],
-            ['Revenue Acceleration', scores.revenueAcceleration],
-            ['Overall Maturity',     scores.overallMaturity],
-          ] as [string, typeof scores.aiReadiness][]).map(([label, sc]) => (
-            <View key={label}>
-              <View style={s.scoreRow}>
-                <Text style={s.scoreLbl}>{label}</Text>
-                <View style={s.scoreBar}>
-                  <View style={[s.scoreBarFill, { width: `${sc.score}%`, backgroundColor: barColor(sc.score) }]} />
-                </View>
-                <Text style={s.scoreNum}>{sc.score}</Text>
-                <Text style={s.scorePct}>Top {100 - sc.percentile}%</Text>
-              </View>
-              <Text style={s.scoreVerdict}>{sc.verdict}</Text>
-              {'topFactors' in sc && (
-                <View style={s.scoreFactors}>
-                  {(sc as { topFactors: string[] }).topFactors.map((f, i) => (
-                    <View key={i} style={s.scoreFactor}>
-                      <Text style={s.scoreFactorTxt}>{f}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+        <>
+          <SectionHead eyebrow="AI MATURITY SCORECARD" title="How You Compare to Industry Peers">
+            <ScoreItem {...scoreItems[0]} last={scoreItems.length === 1} />
+          </SectionHead>
+          {scoreItems.slice(1).map((item, i) => (
+            <View key={item.label} wrap={false}>
+              <ScoreItem {...item} last={i === scoreItems.length - 2} />
             </View>
           ))}
-        </View>
-        <Footer company={companyName} />
-      </Page>
+        </>
 
-      {/* ── PAGES 4+: OPPORTUNITIES (explicit pagination — 2 per page) ── */}
-      {oppPages.map((group, pageIdx) => {
-        return (
-          <Page size="A4" style={s.page} key={pageIdx}>
-            <View style={s.sec}>
-              <Text style={s.eyebrow}>AI OPPORTUNITIES{pageIdx > 0 ? ' (CONTINUED)' : ''}</Text>
-              <Text style={s.heading}>Ranked by Annual Savings</Text>
-              {group.map((opp, i) => (
-                <OpportunityCard key={opp.id} opp={opp} idx={pageIdx * 2 + i} />
-              ))}
-            </View>
+        <>
+          <SectionHead eyebrow="AI OPPORTUNITIES" title="Ranked by Annual Savings">
+            {opportunities.length > 0 && <OpportunityCard opp={opportunities[0]} idx={0} />}
+          </SectionHead>
+          {opportunities.slice(1).map((opp, i) => (
+            <OpportunityCard key={opp.id} opp={opp} idx={i + 1} />
+          ))}
+        </>
 
-            <Footer company={companyName} />
-          </Page>
-        );
-      })}
+        <>
+          {/* Never split: a split 3-column row strands one column's totals
+              alone on the next page. Head + whole row move together instead. */}
+          <SectionHead
+            eyebrow="IMPLEMENTATION PLAN"
+            title="Your 3-Phase Roadmap"
+            keepTogether={estimateRoadmapHeight(implementationRoadmap) <= ROADMAP_KEEP_TOGETHER_MAX}
+          >
+            <Roadmap implementationRoadmap={implementationRoadmap} />
+          </SectionHead>
+        </>
 
-      {/* ── ROADMAP + NEXT STEPS ──────────────────────────────── */}
-      <Page size="A4" style={s.page}>
-        <View style={s.sec}>
-          <Text style={s.eyebrow}>IMPLEMENTATION PLAN</Text>
-          <Text style={s.heading}>Your 3-Phase Roadmap</Text>
-          <Roadmap implementationRoadmap={implementationRoadmap} />
-        </View>
-        <View style={s.divider} />
-        {/* wrap={false}: if a tall roadmap leaves too little room, the whole
-            CTA block moves to the next page instead of splitting. The divider
-            trails the roadmap, so the moved block never starts with a rule. */}
-        <View wrap={false}>
-          <NextStepsCta nextSteps={nextSteps} />
-        </View>
+        <NextStepsCta nextSteps={nextSteps} />
         <Footer company={companyName} />
       </Page>
 

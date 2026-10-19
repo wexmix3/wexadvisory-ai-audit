@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
+import fs from 'fs';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -20,7 +21,31 @@ const STANDARD_FONT_DATA_URL = path.join(
   'node_modules/pdfjs-dist/standard_fonts'
 );
 
+// pdfjs in Node draws the report's (non-embedded) Helvetica text with canvas
+// fillText under the family name "Helvetica" — it never uses the
+// standard_fonts data for drawing. The Vercel function has no system fonts, so
+// every page rasterized there came out with no text at all (boxes, bars and
+// dots only), and the grader scored those empty layouts: the same 62/fail on
+// every production report since 2026-09-03. Register pdfjs's own Helvetica-
+// metric Liberation Sans files under that family so text draws anywhere.
+// The files are traced into the function bundle in next.config.ts.
+const HELVETICA_FILES = ['LiberationSans-Regular.ttf', 'LiberationSans-Bold.ttf'];
+let fontsRegistered = false;
+
+function ensureFonts(): void {
+  if (fontsRegistered) return;
+  for (const file of HELVETICA_FILES) {
+    const fontPath = path.join(STANDARD_FONT_DATA_URL, file);
+    if (!fs.existsSync(fontPath) || !GlobalFonts.registerFromPath(fontPath, 'Helvetica')) {
+      // Fail loudly: a text-less rasterization still "scores", just wrongly.
+      throw new Error(`Visual QA: cannot register font ${fontPath}; pages would rasterize without text`);
+    }
+  }
+  fontsRegistered = true;
+}
+
 async function rasterizePdf(pdfBuffer: Buffer, scale = 1.5): Promise<string[]> {
+  ensureFonts();
   const data = new Uint8Array(pdfBuffer);
   const doc = await getDocument({
     data,

@@ -7,7 +7,13 @@ const nextConfig: NextConfig = {
   // worker file never made it into the deployed function bundle and every
   // visual-QA rasterization call failed with a "Cannot find module" error.
   outputFileTracingIncludes: {
-    '/api/audit/process': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'],
+    // The Liberation Sans files are read by path in lib/pdf/visual-qa.ts and
+    // registered as "Helvetica" — untraceable statically, same as the worker.
+    '/api/audit/process': [
+      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+      './node_modules/pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf',
+      './node_modules/pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf',
+    ],
   },
 };
 
