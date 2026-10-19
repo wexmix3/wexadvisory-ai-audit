@@ -44,7 +44,7 @@ const s = StyleSheet.create({
   coverMetaKey:  { color: MGRAY, fontSize: 9, width: 100 },
   coverMetaVal:  { color: WHITE, fontSize: 9 },
 
-  coverFooter:    { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', padding: '14 48', flexDirection: 'row', justifyContent: 'space-between' },
+  coverFooter:    { borderTopWidth: 1, borderTopColor: '#273242' /* white ~12% over NAVY; rgba borders render green in react-pdf */, padding: '14 48', flexDirection: 'row', justifyContent: 'space-between' },
   coverFooterTxt: { color: MGRAY, fontSize: 8 },
 
   // Shared layout
