@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { search, formatSearchResults } from '@/lib/research/tavily';
+import { search, formatSearchResults, type SearchResult } from '@/lib/research/tavily';
 
 let client: Anthropic | null = null;
 
@@ -22,9 +22,15 @@ export async function runIndustryResearch(
       search(`${industry} small business automation ROI results`, 4),
     ]);
 
+    // Site name on every result title, so each figure can be attributed.
+    const withSite = (results: SearchResult[]) => results.map((r) => {
+      let site = '';
+      try { site = new URL(r.url).hostname.replace(/^www[.]/, ''); } catch { /* no site */ }
+      return site ? { ...r, title: `${r.title} | ${site}` } : r;
+    });
     const searchContext = [
-      formatSearchResults(trends),
-      formatSearchResults(automation),
+      formatSearchResults(withSite(trends)),
+      formatSearchResults(withSite(automation)),
     ].filter(Boolean).join('\n\n');
 
     if (!searchContext) return null;
@@ -32,7 +38,7 @@ export async function runIndustryResearch(
     const message = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 256,
-      system: `You extract sharp, specific industry context for use in a consulting proposal. Output exactly 3-5 sentences of factual industry context. No fluff. No hedging. Direct assertions backed by what you read in the search results. Focus on facts that create urgency or validate the client's challenge.`,
+      system: `You extract sharp, specific industry context for use in a consulting proposal. Output exactly 3-5 sentences of factual industry context. No fluff. State only what the search results support, and name the source site in parentheses after every figure, e.g. (deskmag.com). Leave out any figure you cannot tie to a result. Focus on facts that create urgency or validate the client's challenge.`,
       messages: [{
         role: 'user',
         content: `Industry: ${industry}

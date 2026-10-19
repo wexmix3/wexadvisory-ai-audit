@@ -100,7 +100,7 @@ const s = StyleSheet.create({
 function Footer({ companyName, page }: { companyName: string; page: string }) {
   return (
     <View style={s.footer} fixed>
-      <Text style={s.footerTxt}>Wex Advisory -- Confidential Proposal -- {companyName}</Text>
+      <Text style={s.footerTxt}>Wex Advisory | Confidential Proposal | {companyName}</Text>
       <Text style={s.footerTxt}>{page}</Text>
     </View>
   );
@@ -131,7 +131,7 @@ function CoverPage({ content }: { content: ProposalContent }) {
         <View style={s.coverMeta}>
           <View style={s.coverMetaRow}>
             <Text style={s.coverMetaKey}>Prepared for</Text>
-            <Text style={s.coverMetaVal}>{content.contactFirstName} -- {content.companyName}</Text>
+            <Text style={s.coverMetaVal}>{content.contactFirstName}, {content.companyName}</Text>
           </View>
           <View style={s.coverMetaRow}>
             <Text style={s.coverMetaKey}>Prepared by</Text>
@@ -143,12 +143,16 @@ function CoverPage({ content }: { content: ProposalContent }) {
           </View>
           <View style={s.coverMetaRow}>
             <Text style={s.coverMetaKey}>Opportunities</Text>
-            <Text style={s.coverMetaVal}>{content.opportunities.length} identified</Text>
+            <Text style={s.coverMetaVal}>
+              {typeof content.totalOpportunities === 'number' && content.totalOpportunities > content.opportunities.length
+                ? `${content.totalOpportunities} identified, top ${content.opportunities.length} detailed here`
+                : `${content.opportunities.length} identified`}
+            </Text>
           </View>
         </View>
       </View>
       <View style={s.coverFooter}>
-        <Text style={s.coverFooterTxt}>Confidential -- prepared exclusively for {content.companyName}</Text>
+        <Text style={s.coverFooterTxt}>Confidential. Prepared exclusively for {content.companyName}</Text>
         <Text style={s.coverFooterTxt}>wexadvisory.com</Text>
       </View>
     </Page>
@@ -171,7 +175,7 @@ function ExecutiveSummaryPage({ content }: { content: ProposalContent }) {
           window.
         </Text>
         <Text style={[s.body, { marginTop: 12 }]}>
-          Wex Advisory will serve as your dedicated implementation partner -- handling tool selection,
+          Wex Advisory will serve as your dedicated implementation partner, handling tool selection,
           workflow design, build, and testing. After launch, support is billed hourly and only when you need it.
         </Text>
       </View>
