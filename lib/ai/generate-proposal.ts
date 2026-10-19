@@ -156,7 +156,10 @@ export async function generateProposalContent(
     day: '2-digit',
   });
 
-  const model = process.env.PROPOSAL_MODEL ?? 'claude-opus-4-8';
+  // Trimmed: the Vercel value carries a trailing newline, and the API 404s on
+  // "claude-opus-4-8\n" (every production proposal failed this way once the
+  // after() freeze was fixed on 2026-10-19). Same fix as AUDIT_MODEL in synthesize.ts.
+  const model = (process.env.PROPOSAL_MODEL ?? 'claude-opus-4-8').trim();
   console.log(`[proposal] using model: ${model}`);
 
   const message = await getClient().messages.create({
