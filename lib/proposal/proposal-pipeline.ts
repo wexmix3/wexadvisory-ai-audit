@@ -201,8 +201,8 @@ export async function runProposalPipeline(
       error_message: msg,
     }).eq('id', proposalId);
 
-    // Send admin alert on failure. Awaited and logged: it was detached with a
-    // swallowed catch, so seven weeks of failed proposals never reached Max.
+    // Send admin alert on failure. Awaited and logged: inside after() a detached
+    // send can be frozen mid-flight, and a swallowed catch hid any Resend error.
     const key = process.env.RESEND_API_KEY?.trim();
     if (!key) {
       console.error('[proposal] RESEND_API_KEY not set, failure alert not sent');
