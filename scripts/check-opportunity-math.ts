@@ -12,6 +12,7 @@ import {
   opportunityMathNotes,
   verifyOpportunityMath,
 } from '../lib/ai/opportunity-math.ts';
+import { stripEmDashes, stripEmDashesDeep } from '../lib/ai/plain-text.ts';
 import type { AuditReportData, OpportunityItem, WorthAutomating } from '../types/audit';
 
 const RATE = 200;
@@ -325,6 +326,13 @@ check('old-shape report passes through without throwing and keeps its numbers', 
   // A report with no opportunities array is returned as-is.
   const empty = { ...old, opportunities: undefined } as unknown as AuditReportData;
   assert.equal(verifyOpportunityMath(empty, { buildRateUsd: RATE }), empty);
+});
+
+check('em dashes in model text become commas, everywhere in the parsed object', () => {
+  assert.equal(stripEmDashes('Low readiness — gaps remain'), 'Low readiness, gaps remain');
+  assert.equal(stripEmDashes('a—b'), 'a, b');
+  const deep = stripEmDashesDeep({ a: 'x — y', b: ['p — q', 3], c: { d: 'ok' }, n: null });
+  assert.deepEqual(deep, { a: 'x, y', b: ['p, q', 3], c: { d: 'ok' }, n: null });
 });
 
 console.log(`PASS check-opportunity-math: ${checks} checks`);
