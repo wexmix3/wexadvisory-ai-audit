@@ -49,7 +49,6 @@ Output ONLY valid JSON matching this exact schema. No markdown fences, no preamb
     "headline": "string — e.g. 'Acme Co could save $143K-$287K/year by automating 4 high-volume manual workflows'",
     "totalAnnualSavings": 287000,
     "quickWinSavings": 45000,
-    "topOpportunity": "string — one specific sentence naming the #1 opportunity and its savings",
     "urgencyNote": "string — specific competitive pressure or cost of delay (name competitor type or market trend)",
     "confidenceStatement": "string — MUST follow the 'You told us X. We found Y.' bridge format from rule 12, e.g. 'You told us you would never chase unpaid invoices again. We found no billing automation in place, consistent with that — confirmed against website content, job signals, and industry benchmarks for 25-person professional services firms.'"
   },

@@ -230,6 +230,11 @@ check('drop unworthy only when 3+ remain', () => {
   assert.equal(pruned.data.implementationRoadmap.phase1.totalInvestment, 1000);
   assert.equal(pruned.data.implementationRoadmap.phase1.totalSavings, 30000);
   assert.ok(pruned.data.executiveSummary.topOpportunity.startsWith('a:'), pruned.data.executiveSummary.topOpportunity);
+  // topOpportunity is always written from the first opportunity's computed numbers, never the model's figure.
+  const stale = report([good('x', 30000)]);
+  stale.executiveSummary.topOpportunity = 'Something else saves $999,999 a year.';
+  const restated = verifyOpportunityMath(stale, { buildRateUsd: RATE });
+  assert.equal(restated.executiveSummary.topOpportunity, 'x: about $15K-$30K a year.');
   assert.ok(!pruned.data.executiveSummary.headline.includes('$90K'));
 });
 

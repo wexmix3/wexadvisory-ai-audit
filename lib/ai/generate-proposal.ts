@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AuditReportData, SnapshotIntake, ProposalContent, DecompressedProblem } from '@/types/audit';
 import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF, assertProposalTerms } from '@/lib/proposal/terms';
+import { fmtRange, replaceMoney } from '@/lib/ai/opportunity-math';
 
 let client: Anthropic | null = null;
 
@@ -24,7 +25,7 @@ RULES:
 4. engagementScope must describe concrete deliverables (e.g., "Build and deploy a Make.com automation for X"), not vague scope
 5. Keep every string field concise — no paragraph over 4 sentences
 6. emailBody must be 3-4 short paragraphs: (1) what we found, (2) what we propose, (3) CTA. Formal but human.
-7. emailSubject must be specific — reference company name and top savings figure
+7. emailSubject must be specific — reference company name and the SAVINGS RANGE given below
 8. The emailBody must only reference savings figures that exactly match the opportunities array. Never summarize or re-estimate — pull exact numbers from the JSON.
 9. All monetary values must use exact figures from the audit, not rounded estimates
 10. Quote only the rates and terms given under ENGAGEMENT TERMS. Maintenance after launch is hourly and only as needed.
@@ -105,6 +106,7 @@ ${intake.hoursPerWeek ? `HOURS PER WEEK ON IT (their number): ${intake.hoursPerW
 AUDIT EXECUTIVE SUMMARY:
 - Headline: ${reportData.executiveSummary.headline}
 - Total annual savings identified: $${reportData.executiveSummary.totalAnnualSavings.toLocaleString()}
+- SAVINGS RANGE (conservative to best case): ${fmtRange(reportData.executiveSummary.totalAnnualSavings, reportData.executiveSummary.totalAnnualSavingsConservative)}
 - Quick win savings: $${reportData.executiveSummary.quickWinSavings.toLocaleString()}
 - Top opportunity: ${reportData.executiveSummary.topOpportunity}
 - Urgency: ${reportData.executiveSummary.urgencyNote}
@@ -171,6 +173,13 @@ export async function generateProposalContent(
   if (!match) throw new Error('Proposal generation returned no JSON');
 
   const content: ProposalContent = JSON.parse(match[0]);
+  // The subject's dollar figure is set in code: the range when the audit has one.
+  if (typeof content.emailSubject === 'string') {
+    content.emailSubject = replaceMoney(
+      content.emailSubject,
+      fmtRange(reportData.executiveSummary.totalAnnualSavings, reportData.executiveSummary.totalAnnualSavingsConservative),
+    );
+  }
   assertProposalTerms(content);
   attachBuildHours(content, reportData);
   return {

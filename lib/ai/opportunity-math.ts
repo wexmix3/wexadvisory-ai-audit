@@ -182,6 +182,11 @@ function withPhaseTotals(phase: ImplementationPhase): ImplementationPhase {
 
 const MONEY = /\$[\d,]+(?:\.\d+)?[KkMm]?(?:\s*(?:-|–|—|to)\s*\$[\d,]+(?:\.\d+)?[KkMm]?)?/;
 
+/** Replace the first dollar figure (or dollar range) in model text with a code-computed one. */
+export function replaceMoney(text: string, replacement: string): string {
+  return text.replace(MONEY, replacement);
+}
+
 /** Re-sorts opportunities, recomputes totals and rewrites the headline's first $ figure (or range). */
 export function finalizeTotals(data: AuditReportData, opportunities: OpportunityItem[]): AuditReportData {
   const opps = [...opportunities].sort((a, b) => (b.annualSavings ?? 0) - (a.annualSavings ?? 0));
@@ -193,7 +198,13 @@ export function finalizeTotals(data: AuditReportData, opportunities: Opportunity
   const quickWinSavings = opps.filter((o) => o.quickWin).reduce((sum, o) => sum + num(o.annualSavings), 0);
 
   const summary = data.executiveSummary ?? ({} as AuditReportData['executiveSummary']);
-  const headline = (summary.headline || '').replace(MONEY, fmtRange(totalAnnualSavings, totalAnnualSavingsConservative));
+  const headline = replaceMoney(summary.headline || '', fmtRange(totalAnnualSavings, totalAnnualSavingsConservative));
+  // Written here, not by the model: the model's sentence carried its own
+  // pre-correction figure and could name an opportunity that is no longer first.
+  const top = opps[0];
+  const topOpportunity = top
+    ? `${top.title}: about ${fmtRange(num(top.annualSavings), top.annualSavingsConservative)} a year.`
+    : summary.topOpportunity;
 
   return {
     ...data,
@@ -201,6 +212,7 @@ export function finalizeTotals(data: AuditReportData, opportunities: Opportunity
     executiveSummary: {
       ...summary,
       headline,
+      topOpportunity,
       totalAnnualSavings,
       ...(totalAnnualSavingsConservative !== undefined ? { totalAnnualSavingsConservative } : {}),
       quickWinSavings,
@@ -285,16 +297,8 @@ export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditR
       }
     : data;
 
-  const result = finalizeTotals(pruned, keep);
-  // If the model's top-opportunity sentence named a dropped one, restate it
-  // from the new top opportunity.
-  const top = result.opportunities[0];
-  const summary = result.executiveSummary;
-  // topOpportunity is a sentence, so look for a specific dropped title inside it.
-  if (top && summary && droppedTitles.some((d) => d.length >= 8 && norm(summary.topOpportunity).includes(d))) {
-    summary.topOpportunity = `${top.title}: about ${fmtRange(num(top.annualSavings), top.annualSavingsConservative)} a year.`;
-  }
-  return { data: result, dropped };
+  // finalizeTotals also restates topOpportunity from the new first opportunity.
+  return { data: finalizeTotals(pruned, keep), dropped };
 }
 
 // ── Quality issues computed from the numbers ──────────────────────────────────
