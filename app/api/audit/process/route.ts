@@ -143,13 +143,16 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
       .update({ status: 'complete', lead_status: 'emailed' })
       .eq('id', auditId);
 
-    // Auto-proposal: fire and forget — silent fail, never affects audit delivery
+    // Auto-proposal: never affects audit delivery (errors are caught), but it IS
+    // awaited. A detached promise is not part of after()'s waitUntil, so Vercel
+    // froze it mid-run: every production proposal from 2026-09-02 to 2026-10-19
+    // stayed 'pending' while local runs completed. Same trap as visual QA above.
     const { data: auditRecord } = await db.from('audits').select('traffic_data').eq('id', auditId).single();
     const traffic = auditRecord?.traffic_data as { monthlyTraffic?: number; organicKeywords?: number } | null;
     const trafficSummary = traffic
       ? `Monthly organic traffic: ~${traffic.monthlyTraffic?.toLocaleString() ?? 'unknown'} visits, ${traffic.organicKeywords?.toLocaleString() ?? 'unknown'} keywords ranked`
       : '';
-    runProposalPipeline(auditId, intake, reportData, trafficSummary).catch((err) => {
+    await runProposalPipeline(auditId, intake, reportData, trafficSummary).catch((err) => {
       console.error('[proposal pipeline] unhandled error:', err);
     });
 
