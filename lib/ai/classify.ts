@@ -77,7 +77,7 @@ ${input.jobSignals.slice(0, 2000)}
 
 Classify this business.`.trim();
 
-  const model = process.env.CLASSIFY_MODEL ?? 'claude-haiku-4-5-20251001';
+  const model = (process.env.CLASSIFY_MODEL ?? 'claude-haiku-4-5-20251001').trim();
   // temperature is rejected outright (400) on Opus/Sonnet 4.6+ and Opus 5 —
   // dropped so CLASSIFY_MODEL can be pointed at any current model without
   // this call breaking. Haiku 4.5 (the default) still tolerated it, which is
