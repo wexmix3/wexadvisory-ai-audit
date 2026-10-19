@@ -4,7 +4,9 @@
 
 import assert from 'node:assert/strict';
 import {
+  attachAuditFigures,
   computeWorthAutomatingScore,
+  exactDollarFigures,
   dropUnworthyOpportunities,
   failsWorthAutomating,
   fmtRange,
@@ -13,7 +15,7 @@ import {
   verifyOpportunityMath,
 } from '../lib/ai/opportunity-math.ts';
 import { stripEmDashes, stripEmDashesDeep } from '../lib/ai/plain-text.ts';
-import type { AuditReportData, OpportunityItem, WorthAutomating } from '../types/audit';
+import type { AuditReportData, OpportunityItem, ProposalContent, WorthAutomating } from '../types/audit';
 
 const RATE = 200;
 let checks = 0;
@@ -333,6 +335,40 @@ check('em dashes in model text become commas, everywhere in the parsed object', 
   assert.equal(stripEmDashes('a—b'), 'a, b');
   const deep = stripEmDashesDeep({ a: 'x — y', b: ['p — q', 3], c: { d: 'ok' }, n: null });
   assert.deepEqual(deep, { a: 'x, y', b: ['p, q', 3], c: { d: 'ok' }, n: null });
+});
+
+check('proposal figures come from the audit: savings range, build hours and totals, matched by title', () => {
+  const report = {
+    executiveSummary: { totalAnnualSavings: 115057, totalAnnualSavingsConservative: 57529 },
+    opportunities: [
+      opp({ title: 'Tour follow-up', annualSavings: 35280, annualSavingsConservative: 17640, buildHoursLow: 10, buildHoursHigh: 20 }),
+      opp({ title: 'Booking confirmations', annualSavings: 30106, annualSavingsConservative: 15053 }),
+    ],
+  } as unknown as AuditReportData;
+  const content = {
+    opportunities: [
+      // Model reordered and invented a figure: code must ignore both.
+      { title: 'booking confirmations ', currentState: '', proposedApproach: '', estimatedSavings: 999999, timelineWeeks: 2 },
+      { title: 'Something renamed', currentState: '', proposedApproach: '', estimatedSavings: 1, timelineWeeks: 3 },
+    ],
+  } as unknown as ProposalContent;
+  attachAuditFigures(content, report);
+  assert.equal(content.totalSavingsBest, 115057);
+  assert.equal(content.totalSavingsConservative, 57529);
+  assert.equal(content.opportunities[0].estimatedSavings, 30106);
+  assert.equal(content.opportunities[0].estimatedSavingsConservative, 15053);
+  // No title match: falls back to the same position in the top 3.
+  assert.equal(content.opportunities[1].estimatedSavings, 30106);
+  assert.equal(fmtRange(content.totalSavingsBest!, content.totalSavingsConservative), '$58K-$115K');
+  const byTitle = { opportunities: [{ title: 'Tour follow-up', estimatedSavings: 0 }] } as unknown as ProposalContent;
+  attachAuditFigures(byTitle, report);
+  assert.equal(byTitle.opportunities[0].estimatedSavings, 35280);
+  assert.equal(byTitle.opportunities[0].buildHoursLow, 10);
+});
+
+check('exact dollar figures are flagged, ranges are not', () => {
+  assert.deepEqual(exactDollarFigures('identified $115,057 in savings and $35,280 a year'), ['$115,057', '$35,280']);
+  assert.deepEqual(exactDollarFigures('identified $58K-$115K a year, $200/hr'), []);
 });
 
 console.log(`PASS check-opportunity-math: ${checks} checks`);

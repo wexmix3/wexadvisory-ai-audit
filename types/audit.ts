@@ -191,7 +191,10 @@ export interface ProposalOpportunityFrame {
   title: string;
   currentState: string;
   proposedApproach: string;
+  /** Best case. Copied in code from the audit opportunity, never model text (2026-10-19). */
   estimatedSavings: number;
+  /** Conservative case, copied in code from the audit opportunity. Missing on older proposals. */
+  estimatedSavingsConservative?: number;
   timelineWeeks: number;
   /** Copied in code from the audit opportunity (never model text). Added 2026-10-18. */
   buildHoursLow?: number;
@@ -205,6 +208,9 @@ export interface ProposalContent {
   preparedDate: string;
   executiveSummary: string;
   opportunities: ProposalOpportunityFrame[];
+  /** Whole-audit totals copied in code so the PDF cover matches the audit report (2026-10-19). */
+  totalSavingsBest?: number;
+  totalSavingsConservative?: number;
   engagementScope: string;
   engagementTimeline: string;
   ongoingSupportDescription: string;
