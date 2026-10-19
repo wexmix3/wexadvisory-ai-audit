@@ -41,7 +41,7 @@ async function sendBudgetAlert(mtdSpend: number): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return;
 
-  await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
@@ -60,6 +60,7 @@ async function sendBudgetAlert(mtdSpend: number): Promise<void> {
 </div>`,
     }),
   });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
 
 function buildEmailHtml(params: {
@@ -134,7 +135,8 @@ export async function runProposalPipeline(
     }
 
     if (mtdSpend >= ALERT_THRESHOLD) {
-      sendBudgetAlert(mtdSpend).catch((e) => console.error('[proposal] budget alert failed:', e));
+      // Awaited: this runs inside after(), where a detached promise can be frozen mid-send.
+      await sendBudgetAlert(mtdSpend).catch((e) => console.error('[proposal] budget alert failed:', e));
     }
 
     // Run problem decomposition and industry research in parallel
