@@ -24,7 +24,7 @@ export async function GET(
     company_name: string | null;
     error_message: string | null;
     scores: Record<string, { score: number; percentile: number; verdict: string; topFactors: string[] }> | null;
-    report_data: { executiveSummary?: { totalAnnualSavings?: number; headline?: string } } | null;
+    report_data: { executiveSummary?: { totalAnnualSavings?: number; totalAnnualSavingsConservative?: number; headline?: string } } | null;
   };
 
   return NextResponse.json({
@@ -35,6 +35,8 @@ export async function GET(
     summary: data.status === 'complete' && data.report_data
       ? {
           totalAnnualSavings: data.report_data.executiveSummary?.totalAnnualSavings ?? 0,
+          // Missing on reports stored before 2026-10-18; the page falls back to the single figure.
+          totalAnnualSavingsConservative: data.report_data.executiveSummary?.totalAnnualSavingsConservative,
           headline: data.report_data.executiveSummary?.headline ?? '',
           scores: data.scores,
         }

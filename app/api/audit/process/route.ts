@@ -36,11 +36,11 @@ export async function POST(req: NextRequest) {
 
 async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
   try {
-    const { reportData } = await runAuditPipeline(auditId, intake);
+    const { reportData, gateIssues, droppedOpportunities } = await runAuditPipeline(auditId, intake);
 
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/results/${auditId}`;
 
-    const [snapshotEmailResult] = await Promise.allSettled([
+    const [snapshotEmailResult, adminEmailResult] = await Promise.allSettled([
       sendSnapshotEmail({
         toEmail: intake.contactEmail,
         toName: intake.contactName,
@@ -58,13 +58,23 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         industry: intake.industry,
         employeeRange: intake.employeeRange,
         totalAnnualSavings: reportData.executiveSummary.totalAnnualSavings,
+        totalAnnualSavingsConservative: reportData.executiveSummary.totalAnnualSavingsConservative,
         aiReadinessScore: reportData.scores.aiReadiness.score,
         topOpportunity: reportData.executiveSummary.topOpportunity,
         auditId,
         resultsUrl,
         source: intake.utmSource || undefined,
+        qualityGateIssues: gateIssues,
+        droppedOpportunities,
       }),
     ]);
+    // Delivery never blocks the pipeline, but a failed send must show in the logs.
+    if (snapshotEmailResult.status === 'rejected') {
+      console.error(`[email] snapshot email to prospect failed for audit ${auditId}:`, snapshotEmailResult.reason);
+    }
+    if (adminEmailResult.status === 'rejected') {
+      console.error(`[email] admin notification failed for audit ${auditId}:`, adminEmailResult.reason);
+    }
 
     // Visual QA: runs after email delivery so it never blocks or delays the send —
     // but it IS awaited (not detached) because after()'s waitUntil only extends the

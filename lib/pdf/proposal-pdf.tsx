@@ -71,7 +71,7 @@ const s = StyleSheet.create({
   oppBody:       { padding: '12 16' },
   oppLabel:      { color: GOLD, fontSize: 7.5, letterSpacing: 1, marginBottom: 3, marginTop: 8 },
   oppText:       { color: DGRAY, fontSize: 9.5, lineHeight: 1.6 },
-  oppMeta:       { flexDirection: 'row', marginTop: 10, gap: 16 },
+  oppMeta:       { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, gap: 16 },
   oppMetaItem:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
   oppMetaKey:    { color: MGRAY, fontSize: 8.5 },
   oppMetaVal:    { color: NAVY, fontSize: 8.5, fontFamily: 'Helvetica-Bold' },
@@ -211,6 +211,12 @@ function OpportunitiesPage({ content }: { content: ProposalContent }) {
                   <Text style={s.oppMetaKey}>Annual savings:</Text>
                   <Text style={s.oppMetaVal}>${opp.estimatedSavings.toLocaleString()}</Text>
                 </View>
+                {typeof opp.buildHoursLow === 'number' && typeof opp.buildHoursHigh === 'number' && (
+                  <View style={s.oppMetaItem}>
+                    <Text style={s.oppMetaKey}>Estimated build:</Text>
+                    <Text style={s.oppMetaVal}>about {opp.buildHoursLow}-{opp.buildHoursHigh} hours at ${BUILD_RATE_USD}/hr</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>

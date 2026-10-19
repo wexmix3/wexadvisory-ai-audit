@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AuditReportData, SnapshotIntake, ProposalContent, DecompressedProblem } from '@/types/audit';
 import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF, assertProposalTerms } from '@/lib/proposal/terms';
+import { fmtRange, replaceMoney } from '@/lib/ai/opportunity-math';
+import { stripEmDashesDeep } from '@/lib/ai/plain-text';
 
 let client: Anthropic | null = null;
 
@@ -13,46 +15,46 @@ function getClient(): Anthropic {
   return client;
 }
 
-const SYSTEM_PROMPT = `You are a senior consultant at Wex Advisory, a boutique AI consulting firm. You write concise, formal consulting proposals for small to mid-market businesses. Your tone is direct, professional, and confident — never generic, never padded.
+const SYSTEM_PROMPT = `You are a senior consultant at Wex Advisory, a boutique AI consulting firm. You write concise, formal consulting proposals for small to mid-market businesses. Your tone is direct, professional, and confident: never generic, never padded.
 
 You will receive a completed AI opportunity audit for a company and produce a structured proposal JSON.
 
 RULES:
-1. Reference the company by name throughout — never say "your company" generically
+1. Reference the company by name throughout: never say "your company" generically
 2. The executiveSummary must reference their specific top opportunity and savings figure
 3. Each opportunity's proposedApproach must name the specific tools already identified in the audit
 4. engagementScope must describe concrete deliverables (e.g., "Build and deploy a Make.com automation for X"), not vague scope
-5. Keep every string field concise — no paragraph over 4 sentences
+5. Keep every string field concise: no paragraph over 4 sentences
 6. emailBody must be 3-4 short paragraphs: (1) what we found, (2) what we propose, (3) CTA. Formal but human.
-7. emailSubject must be specific — reference company name and top savings figure
-8. The emailBody must only reference savings figures that exactly match the opportunities array. Never summarize or re-estimate — pull exact numbers from the JSON.
+7. emailSubject must be specific: reference company name and the SAVINGS RANGE given below
+8. The emailBody must only reference savings figures that exactly match the opportunities array. Never summarize or re-estimate: pull exact numbers from the JSON.
 9. All monetary values must use exact figures from the audit, not rounded estimates
 10. Quote only the rates and terms given under ENGAGEMENT TERMS. Maintenance after launch is hourly and only as needed.
 11. The team handoff under ENGAGEMENT TERMS is printed in the proposal PDF as written. Do not restate or extend it; one sentence in the emailBody saying a recorded team walkthrough is included is enough.
 
-Output ONLY valid JSON — no markdown, no preamble:
+Output ONLY valid JSON: no markdown, no preamble:
 
 {
-  "contactFirstName": "string — first name only",
+  "contactFirstName": "string: first name only",
   "companyName": "string",
   "companyUrl": "string",
-  "preparedDate": "string — formatted as Month DD, YYYY",
-  "executiveSummary": "string — 2-3 sentences: what we found, total identified savings, why now",
+  "preparedDate": "string: formatted as Month DD, YYYY",
+  "executiveSummary": "string: 2-3 sentences: what we found, total identified savings, why now",
   "opportunities": [
     {
-      "title": "string — exact opportunity title from audit",
-      "currentState": "string — 1-2 sentences describing the current manual process",
-      "proposedApproach": "string — 1-2 sentences naming the specific tools and what we would build",
+      "title": "string: exact opportunity title from audit",
+      "currentState": "string: 1-2 sentences describing the current manual process",
+      "proposedApproach": "string: 1-2 sentences naming the specific tools and what we would build",
       "estimatedSavings": 0,
       "timelineWeeks": 0
     }
   ],
-  "engagementScope": "string — bullet-point style description of concrete deliverables for Phase 1 (quick wins). Use \\n to separate items.",
-  "engagementTimeline": "string — e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. After launch: maintenance billed hourly, as needed.'",
-  "ongoingSupportDescription": "string — 1-2 sentences on what hourly maintenance after launch would cover for this company",
-  "nextStep": "string — specific CTA sentence pointing to the Calendly link",
-  "emailSubject": "string — specific subject line referencing company and top savings",
-  "emailBody": "string — 3-4 paragraph email body. Use \\n\\n between paragraphs. Formal consulting tone. Sign off as Max Wexley, Wex Advisory."
+  "engagementScope": "string: bullet-point style description of concrete deliverables for Phase 1 (quick wins). Use \\n to separate items.",
+  "engagementTimeline": "string: e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. After launch: maintenance billed hourly, as needed.'",
+  "ongoingSupportDescription": "string: 1-2 sentences on what hourly maintenance after launch would cover for this company",
+  "nextStep": "string: specific CTA sentence pointing to the Calendly link",
+  "emailSubject": "string: specific subject line referencing company and top savings",
+  "emailBody": "string: 3-4 paragraph email body. Use \\n\\n between paragraphs. Formal consulting tone. Sign off as Max Wexley, Wex Advisory."
 }`;
 
 function buildUserMessage(
@@ -100,11 +102,12 @@ URL: ${intake.companyUrl}
 CONTACT NAME: ${intake.contactName}
 INDUSTRY: ${intake.industry}
 TEAM SIZE: ${intake.employeeRange} employees
-BIGGEST CHALLENGE: "${intake.biggestChallenge}"
-
+WHAT THEY WOULD NEVER DO AGAIN: "${intake.biggestChallenge}"
+${intake.hoursPerWeek ? `HOURS PER WEEK ON IT (their number): ${intake.hoursPerWeek}\n` : ''}
 AUDIT EXECUTIVE SUMMARY:
 - Headline: ${reportData.executiveSummary.headline}
 - Total annual savings identified: $${reportData.executiveSummary.totalAnnualSavings.toLocaleString()}
+- SAVINGS RANGE (conservative to best case): ${fmtRange(reportData.executiveSummary.totalAnnualSavings, reportData.executiveSummary.totalAnnualSavingsConservative)}
 - Quick win savings: $${reportData.executiveSummary.quickWinSavings.toLocaleString()}
 - Top opportunity: ${reportData.executiveSummary.topOpportunity}
 - Urgency: ${reportData.executiveSummary.urgencyNote}
@@ -122,6 +125,22 @@ ENGAGEMENT TERMS:
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/free-strategy-call
 
 Generate the proposal JSON. Be specific to ${intake.companyName} — reference their actual processes and tools, not generic descriptions.`;
+}
+
+// Build hours come from the audit (code-computed inputs), never from model
+// text: match each proposal opportunity to its audit opportunity by title,
+// falling back to the same position in the top 3.
+function attachBuildHours(content: ProposalContent, reportData: AuditReportData): void {
+  if (!Array.isArray(content.opportunities)) return;
+  const top3 = (reportData.opportunities ?? []).slice(0, 3);
+  const norm = (t: string) => (t ?? '').trim().toLowerCase();
+  content.opportunities = content.opportunities.map((frame, i) => {
+    const source = top3.find((o) => norm(o.title) === norm(frame.title)) ?? top3[i];
+    const low = Number(source?.buildHoursLow);
+    const high = Number(source?.buildHoursHigh);
+    if (!(low > 0 && high > 0)) return frame;
+    return { ...frame, buildHoursLow: low, buildHoursHigh: high };
+  });
 }
 
 export async function generateProposalContent(
@@ -154,8 +173,16 @@ export async function generateProposalContent(
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Proposal generation returned no JSON');
 
-  const content: ProposalContent = JSON.parse(match[0]);
+  const content: ProposalContent = stripEmDashesDeep(JSON.parse(match[0]));
+  // The subject's dollar figure is set in code: the range when the audit has one.
+  if (typeof content.emailSubject === 'string') {
+    content.emailSubject = replaceMoney(
+      content.emailSubject,
+      fmtRange(reportData.executiveSummary.totalAnnualSavings, reportData.executiveSummary.totalAnnualSavingsConservative),
+    );
+  }
   assertProposalTerms(content);
+  attachBuildHours(content, reportData);
   return {
     content,
     inputTokens: message.usage.input_tokens,

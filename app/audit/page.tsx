@@ -53,6 +53,7 @@ export default function AuditPage() {
     industry: '',
     employeeRange: '11-50',
     biggestChallenge: '',
+    hoursPerWeek: '',
     contactName: '',
     contactEmail: '',
   }));
@@ -69,7 +70,7 @@ export default function AuditPage() {
 
   function validateStep2() {
     if (!form.industry) return 'Please select your industry';
-    if (!form.biggestChallenge.trim()) return 'Please describe your biggest challenge';
+    if (!form.biggestChallenge.trim()) return 'Please tell us the part of the job you would never do again';
     if (!form.contactName.trim()) return 'Please enter your name';
     if (!form.contactEmail.trim() || !form.contactEmail.includes('@')) return 'Please enter a valid email';
     return '';
@@ -180,7 +181,7 @@ export default function AuditPage() {
           {step === 2 && (
             <div>
               <h2 className="text-white text-xl font-semibold mb-1">Tell us about your business</h2>
-              <p className="text-slate-400 text-sm mb-6">4 quick questions to calibrate your analysis</p>
+              <p className="text-slate-400 text-sm mb-6">A few quick questions to calibrate your analysis</p>
 
               <div className="space-y-4">
                 <div>
@@ -217,15 +218,34 @@ export default function AuditPage() {
                 </div>
 
                 <div>
-                  <label className="text-slate-300 text-sm font-medium block mb-1.5">
-                    Biggest operational challenge right now
+                  <label htmlFor="biggestChallenge" className="text-slate-300 text-sm font-medium block mb-1.5">
+                    What part of your job (or your team&apos;s) would you happily never do again?
                   </label>
                   <textarea
-                    placeholder="e.g. Manual reporting takes hours each week, proposals take too long, we lose track of follow-ups..."
+                    id="biggestChallenge"
+                    placeholder="e.g. building the weekly sales report by hand, chasing unpaid invoices"
                     value={form.biggestChallenge}
                     onChange={(e) => update('biggestChallenge', e.target.value)}
                     rows={3}
                     className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#C8A84B] transition-colors placeholder-slate-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="hoursPerWeek" className="text-slate-300 text-sm font-medium block mb-1.5">
+                    About how many hours a week does it take? (optional)
+                  </label>
+                  <input
+                    id="hoursPerWeek"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={168}
+                    step="any"
+                    placeholder="e.g. 5"
+                    value={form.hoursPerWeek}
+                    onChange={(e) => update('hoursPerWeek', e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#C8A84B] transition-colors placeholder-slate-500"
                   />
                 </div>
 

@@ -96,10 +96,10 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(aiReadiness, benchmark.avgAiReadiness),
       verdict:
         aiReadiness >= 70
-          ? 'Well-positioned for AI adoption — strong tech foundation in place.'
+          ? 'Well-positioned for AI adoption. Strong tech foundation in place.'
           : aiReadiness >= 45
-          ? 'Moderate AI readiness — some foundational gaps to address before scaling.'
-          : 'Low AI readiness — significant infrastructure investment needed before advanced automation.',
+          ? 'Moderate AI readiness. Some foundational gaps to address before scaling.'
+          : 'Low AI readiness. Significant infrastructure investment needed before advanced automation.',
       topFactors: [
         `Tech sophistication: ${classification.techSophistication}`,
         `Data maturity: ${classification.dataMature}`,
@@ -113,10 +113,10 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(automationOpportunity, benchmark.avgAutomationOpportunity),
       verdict:
         automationOpportunity >= 70
-          ? 'High automation potential — significant manual workflows identified that are immediately addressable.'
+          ? 'High automation potential. Significant manual workflows identified that are immediately addressable.'
           : automationOpportunity >= 45
-          ? 'Moderate automation opportunity — several workflows can be systematically improved.'
-          : 'Lower automation ceiling — business already has some process efficiency in place.',
+          ? 'Moderate automation opportunity. Several workflows can be systematically improved.'
+          : 'Lower automation ceiling. Business already has some process efficiency in place.',
       topFactors: [
         `${manualProcessSignals.length} manual process signals detected`,
         `${classification.inferredDepartments.length} departments inferred (${classification.inferredDepartments.slice(0, 3).join(', ')})`,
@@ -128,10 +128,10 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(dataVisibility, benchmark.avgDataVisibility),
       verdict:
         dataVisibility >= 65
-          ? 'Good data visibility — leadership has meaningful insight into business performance.'
+          ? 'Good data visibility. Leadership has meaningful insight into business performance.'
           : dataVisibility >= 35
-          ? 'Partial visibility — some metrics tracked but key blind spots exist across departments.'
-          : 'Very limited data visibility — most operational performance is invisible to leadership.',
+          ? 'Partial visibility. Some metrics tracked but key blind spots exist across departments.'
+          : 'Very limited data visibility. Most operational performance is invisible to leadership.',
       topFactors: [
         `Data infrastructure: ${classification.dataMature}`,
         hasTrafficData
@@ -146,13 +146,13 @@ export function computeScores(input: ScoringInput): AuditScores {
       verdict:
         revenueAcceleration >= 65
           ? hasSales && hasMarketing
-            ? 'Strong revenue acceleration potential — sales and marketing infrastructure ready to leverage AI.'
+            ? 'Strong revenue acceleration potential. Sales and marketing infrastructure ready to leverage AI.'
             : hasSales
-            ? 'Strong revenue acceleration potential — sales infrastructure ready to leverage AI; marketing infrastructure still needs to be built out.'
-            : 'Strong revenue acceleration potential — marketing infrastructure ready to leverage AI; sales infrastructure still needs to be built out.'
+            ? 'Strong revenue acceleration potential. Sales infrastructure ready to leverage AI; marketing infrastructure still needs to be built out.'
+            : 'Strong revenue acceleration potential. Marketing infrastructure ready to leverage AI; sales infrastructure still needs to be built out.'
           : revenueAcceleration >= 45
-          ? 'Moderate revenue opportunity — targeted AI investments could meaningfully improve top-line growth.'
-          : 'Foundational revenue infrastructure gaps — address CRM and pipeline visibility first.',
+          ? 'Moderate revenue opportunity. Targeted AI investments could meaningfully improve top-line growth.'
+          : 'Foundational revenue infrastructure gaps. Address CRM and pipeline visibility first.',
       topFactors: [
         hasSales ? 'Sales function detected' : 'Limited sales infrastructure signals',
         hasMarketing ? 'Marketing function detected' : 'Limited marketing infrastructure',
@@ -164,10 +164,10 @@ export function computeScores(input: ScoringInput): AuditScores {
       percentile: toPercentile(overall, 45),
       verdict:
         overall >= 65
-          ? `Ahead of most peers in ${benchmark.name} — ready to move from AI foundation to scale.`
+          ? `Ahead of most peers in ${benchmark.name}. Ready to move from AI foundation to scale.`
           : overall >= 40
-          ? `Roughly average for ${benchmark.name} — clear opportunities to pull ahead of competitors through targeted AI investments.`
-          : `Below average for ${benchmark.name} — significant upside available with systematic investment.`,
+          ? `Roughly average for ${benchmark.name}. Clear opportunities to pull ahead of competitors through targeted AI investments.`
+          : `Below average for ${benchmark.name}. Significant upside available with systematic investment.`,
       topFactors: [
         `AI Readiness: ${aiReadiness}/100`,
         `Automation Opportunity: ${automationOpportunity}/100`,
