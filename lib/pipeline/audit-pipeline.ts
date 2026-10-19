@@ -97,7 +97,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       ? `Monthly organic traffic: ~${traffic.monthlyTraffic?.toLocaleString() ?? 'unknown'} visits, ${traffic.organicKeywords?.toLocaleString() ?? 'unknown'} keywords ranked`
       : '';
 
-    const { data: reportData, qualityRetryUsed, preRetryIssues, finalIssues, droppedOpportunities } = await synthesizeAudit({
+    const { data: reportData, qualityRetryUsed, preRetryIssues, finalIssues, finalNotes, droppedOpportunities } = await synthesizeAudit({
       intake,
       classification,
       webContent,
@@ -113,7 +113,8 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       scoreAuditQualityLLM(reportData, intake.companyName),
     ]);
     // Gate result on the delivered report, computed once inside synthesizeAudit.
-    const gateResult = { passed: finalIssues.length === 0, issues: finalIssues };
+    // Notes ride along for the record and the admin email but do not fail the gate.
+    const gateResult = { passed: finalIssues.length === 0, issues: [...finalIssues, ...finalNotes] };
     const llmQuality = llmQualityResult.status === 'fulfilled' ? llmQualityResult.value : null;
 
     const evalQuality = {

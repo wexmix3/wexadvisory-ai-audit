@@ -363,7 +363,7 @@ function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }
       <Text style={[s.heading, { marginBottom: 10 }]}>What to Do This Week</Text>
 
       <View style={{ marginBottom: 16 }}>
-        {(nextSteps.immediate ?? []).map((step, i) => (
+        {(nextSteps?.immediate ?? []).map((step, i) => (
           <View key={i} style={s.stepItem}>
             <Text style={s.stepBullet}>-&gt;</Text>
             <Text style={s.stepTxt}>{step}</Text>

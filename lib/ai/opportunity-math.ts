@@ -47,13 +47,18 @@ function clamp02(v: unknown): number {
 }
 
 export function fmtShort(n: number): string {
-  return n >= 1000000 ? `$${(n / 1000000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
+  const v = num(n);
+  if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `$${Math.round(v / 1000)}K`;
+  return `$${Math.round(v).toLocaleString('en-US')}`;
 }
 
 /** "$143K-$287K" when the conservative figure exists, else the old single figure. */
 export function fmtRange(best: number, conservative?: number): string {
   if (typeof conservative !== 'number' || !Number.isFinite(conservative)) return fmtShort(best);
-  return `${fmtShort(conservative)}-${fmtShort(best)}`;
+  const lo = fmtShort(conservative);
+  const hi = fmtShort(best);
+  return lo === hi ? hi : `${lo}-${hi}`;
 }
 
 // ── Worth-automating score ────────────────────────────────────────────────────
@@ -83,6 +88,15 @@ function verifyOne(opp: OpportunityItem, opts: OpportunityMathOptions, applyInta
   if (applyIntakeHours && validHours(opts.intakeHoursPerWeek)) {
     out.fteCountAffected = 1;
     out.hoursPerMonth = Math.round(opts.intakeHoursPerWeek * WEEKS_PER_MONTH);
+    // Keep the model's minutes per run, and derive runs from their hours so the
+    // "runs about N a month" line and the repeat score agree with their number.
+    const minutes = num(out.worthAutomating?.minutesPerRun);
+    if (out.worthAutomating && minutes > 0) {
+      out.worthAutomating = {
+        ...out.worthAutomating,
+        runsPerMonth: Math.max(1, Math.round((out.hoursPerMonth * 60) / minutes)),
+      };
+    }
   }
 
   const hours = num(out.hoursPerMonth);
@@ -136,6 +150,7 @@ function verifyOne(opp: OpportunityItem, opts: OpportunityMathOptions, applyInta
 
   out.quickWin =
     out.complexity === 'low' &&
+    Number.isFinite(Number(out.implementationWeeks)) &&
     num(out.implementationWeeks) <= QUICK_WIN_MAX_WEEKS &&
     Number.isFinite(Number(out.implementationCostHigh)) &&
     num(out.implementationCostHigh) <= QUICK_WIN_MAX_COST_USD;
@@ -150,8 +165,17 @@ function verifyPhase(phase: ImplementationPhase | undefined, rate: number): Impl
   const items = phase.items.map((it) =>
     hasHours(it.buildHours) ? { ...it, estimatedCost: Math.round((it.buildHours as number) * rate) } : it,
   );
-  const totalInvestment = items.reduce((sum, it) => sum + num(it.estimatedCost), 0);
-  return { ...phase, items, totalInvestment };
+  return withPhaseTotals({ ...phase, items });
+}
+
+/** Phase totals as sums of their items, so the roadmap never disagrees with itself. */
+function withPhaseTotals(phase: ImplementationPhase): ImplementationPhase {
+  const totalInvestment = phase.items.reduce((sum, it) => sum + num(it.estimatedCost), 0);
+  const allSavings = phase.items.every((it) => Number.isFinite(Number(it.estimatedSavings)));
+  const totalSavings = allSavings
+    ? phase.items.reduce((sum, it) => sum + num(it.estimatedSavings), 0)
+    : phase.totalSavings;
+  return { ...phase, totalInvestment, totalSavings };
 }
 
 // ── Totals + headline ─────────────────────────────────────────────────────────
@@ -222,10 +246,48 @@ export function verifyOpportunityMath(data: AuditReportData, opts: OpportunityMa
  */
 export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditReportData; dropped: string[] } {
   const opps = data.opportunities ?? [];
-  const keep = opps.filter((o) => !failsWorthAutomating(o));
+  // The opportunity carrying their own hours is never dropped: it is the one
+  // they told us about.
+  const droppable = (o: OpportunityItem) => failsWorthAutomating(o) && o.usesIntakeHours !== true;
+  const keep = opps.filter((o) => !droppable(o));
   if (keep.length === opps.length || keep.length < 3) return { data, dropped: [] };
-  const dropped = opps.filter((o) => failsWorthAutomating(o)).map((o) => o.title);
-  return { data: finalizeTotals(data, keep), dropped };
+  const dropped = opps.filter(droppable).map((o) => o.title);
+
+  // Roadmap items are matched to opportunities by title only; remove the ones
+  // naming a dropped opportunity and re-sum their phase.
+  const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase();
+  const droppedTitles = dropped.map(norm).filter(Boolean);
+  const mentionsDropped = (title: string | undefined) => {
+    const t = norm(title);
+    return t !== '' && droppedTitles.some((d) => t === d || t.includes(d) || d.includes(t));
+  };
+  const prunePhase = (phase: ImplementationPhase | undefined) => {
+    if (!phase || !Array.isArray(phase.items)) return phase;
+    const items = phase.items.filter((it) => !mentionsDropped(it.title));
+    return items.length === phase.items.length ? phase : withPhaseTotals({ ...phase, items });
+  };
+  const roadmap = data.implementationRoadmap;
+  const pruned: AuditReportData = roadmap
+    ? {
+        ...data,
+        implementationRoadmap: {
+          ...roadmap,
+          phase1: prunePhase(roadmap.phase1) as ImplementationPhase,
+          phase2: prunePhase(roadmap.phase2) as ImplementationPhase,
+          phase3: prunePhase(roadmap.phase3) as ImplementationPhase,
+        },
+      }
+    : data;
+
+  const result = finalizeTotals(pruned, keep);
+  // If the model's top-opportunity sentence named a dropped one, restate it
+  // from the new top opportunity.
+  const top = result.opportunities[0];
+  const summary = result.executiveSummary;
+  if (top && summary && droppedTitles.some((d) => norm(summary.topOpportunity).includes(d))) {
+    summary.topOpportunity = `${top.title}: about ${fmtRange(num(top.annualSavings), top.annualSavingsConservative)} a year.`;
+  }
+  return { data: result, dropped };
 }
 
 // ── Quality issues computed from the numbers ──────────────────────────────────
@@ -247,8 +309,33 @@ export function opportunityMathIssues(data: AuditReportData, intakeHoursPerWeek?
     );
   }
 
+  if (validHours(intakeHoursPerWeek)) {
+    const flagged = opps.filter((o) => o.usesIntakeHours === true);
+    if (flagged.length === 0) {
+      issues.push(
+        `their stated ${intakeHoursPerWeek} hours/week must be used on the opportunity matching their answer: set usesIntakeHours true on exactly that one`,
+      );
+    } else if (flagged.length > 1) {
+      issues.push(`usesIntakeHours is true on ${flagged.length} opportunities, it must be true on exactly one`);
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Log-only notes about the numbers: stored with the gate result and shown in
+ * the admin email, but they do not trigger a paid retry. Models often miss
+ * minutes x runs arithmetic, and code already falls back when build hours are
+ * missing, so a retry would cost more than it fixes.
+ */
+export function opportunityMathNotes(data: AuditReportData): string[] {
+  const issues: string[] = [];
+  const opps = data.opportunities ?? [];
+
   const inconsistent = opps.filter((o) => {
-    if (!o.worthAutomating) return false;
+    // Their own hours replaced the model's on this one, and runs were derived from them.
+    if (!o.worthAutomating || o.usesIntakeHours === true) return false;
     const implied = (num(o.worthAutomating.minutesPerRun) * num(o.worthAutomating.runsPerMonth)) / 60;
     const stated = num(o.hoursPerMonth) * (num(o.fteCountAffected) || 1);
     if (implied <= 0 && stated <= 0) return false;
@@ -269,16 +356,5 @@ export function opportunityMathIssues(data: AuditReportData, intakeHoursPerWeek?
     issues.push(`${missingBuild.length} opportunit${missingBuild.length > 1 ? 'ies are' : 'y is'} missing buildHoursLow/buildHoursHigh`);
   }
 
-  if (validHours(intakeHoursPerWeek)) {
-    const flagged = opps.filter((o) => o.usesIntakeHours === true);
-    if (flagged.length === 0) {
-      issues.push(
-        `their stated ${intakeHoursPerWeek} hours/week must be used on the opportunity matching their answer: set usesIntakeHours true on exactly that one`,
-      );
-    } else if (flagged.length > 1) {
-      issues.push(`usesIntakeHours is true on ${flagged.length} opportunities, it must be true on exactly one`);
-    }
-  }
-
-  return issues;
+  return issues.map((i) => `note: ${i}`);
 }

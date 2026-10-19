@@ -9,6 +9,7 @@ import {
   failsWorthAutomating,
   fmtRange,
   opportunityMathIssues,
+  opportunityMathNotes,
   verifyOpportunityMath,
 } from '../lib/ai/opportunity-math.ts';
 import type { AuditReportData, OpportunityItem, WorthAutomating } from '../types/audit';
@@ -104,6 +105,8 @@ check('headline: existing range is replaced whole, not appended to', () => {
   const r2 = verifyOpportunityMath(r, { buildRateUsd: RATE });
   assert.equal(r2.executiveSummary.headline, r.executiveSummary.headline);
   assert.equal(fmtRange(1300000, 650000), '$650K-$1.3M');
+  assert.equal(fmtRange(0, 0), '$0');
+  assert.equal(fmtRange(400, 200), '$200-$400');
 });
 
 check('>20% override still works, within 20% keeps the model figure', () => {
@@ -129,6 +132,16 @@ check('intake hours applied to the flagged opportunity only, labeled from you', 
   assert.equal(flagged.inputSources?.rate, 'industry benchmark estimate');
   assert.equal(other.inputSources?.hours, 'industry benchmark estimate');
   assert.equal(other.hoursPerMonth, 32);
+  // Their hours replace the model's; runs are derived from them so the PDF line and score agree,
+  // and the hours-consistency note never fires on the flagged opportunity.
+  const withWorth = verifyOpportunityMath(
+    report([opp({ usesIntakeHours: true, worthAutomating: { ...GOOD_WORTH, minutesPerRun: 15, runsPerMonth: 999 } })]),
+    { buildRateUsd: RATE, intakeHoursPerWeek: 2 },
+  );
+  const w = withWorth.opportunities[0];
+  assert.equal(w.hoursPerMonth, 9); // round(2 * 4.33)
+  assert.equal(w.worthAutomating?.runsPerMonth, 36); // 9 h * 60 / 15 min
+  assert.deepEqual(opportunityMathNotes({ ...withWorth, opportunities: [{ ...w, buildHoursLow: 1, buildHoursHigh: 2 }] }), []);
   assert.deepEqual(opportunityMathIssues({ ...r, opportunities: r.opportunities.map((o) => ({ ...o, worthAutomating: GOOD_WORTH, buildHoursLow: 1, buildHoursHigh: 2 })) }, 6)
     .filter((i) => i.includes('usesIntakeHours') || i.includes('hours/week')), []);
 });
@@ -160,18 +173,23 @@ check('worth-automating score thresholds', () => {
   assert.equal(r.opportunities[0].worthAutomatingScore, 9);
 });
 
-check('gate: unworthy, missing facts, inconsistent hours', () => {
+check('gate: unworthy and missing facts retry; inconsistent hours and missing build hours are notes only', () => {
   const unworthy = opp({ title: 'Draft a LinkedIn post', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 }, buildHoursLow: 1, buildHoursHigh: 2 });
   // 32 h x 3 FTE = 96 h stated; 2 min x 30 runs = 1 h implied -> 96x off
   const inconsistent = opp({ id: 'o2', title: 'Inconsistent one', worthAutomating: { ...GOOD_WORTH, minutesPerRun: 2, runsPerMonth: 30 }, buildHoursLow: 1, buildHoursHigh: 2 });
   const consistent = opp({ id: 'o3', title: 'Fine', worthAutomating: GOOD_WORTH, buildHoursLow: 1, buildHoursHigh: 2 });
   const missing = opp({ id: 'o4', title: 'No facts' });
-  const issues = opportunityMathIssues(report([unworthy, inconsistent, consistent, missing]));
+  const all = report([unworthy, inconsistent, consistent, missing]);
+  const issues = opportunityMathIssues(all);
   assert.ok(issues.some((i) => i.includes('"Draft a LinkedIn post"')));
-  assert.ok(issues.some((i) => i.includes('"Inconsistent one"') && !i.includes('"Fine"')));
   assert.ok(issues.some((i) => i.includes('missing worthAutomating')));
-  assert.ok(issues.some((i) => i.includes('missing buildHoursLow')));
+  assert.ok(!issues.some((i) => i.includes('inconsistent') || i.includes('buildHours')), 'notes must not retry');
+  const notes = opportunityMathNotes(all);
+  assert.ok(notes.every((n) => n.startsWith('note: ')));
+  assert.ok(notes.some((n) => n.includes('"Inconsistent one"') && !n.includes('"Fine"')));
+  assert.ok(notes.some((n) => n.includes('missing buildHoursLow')));
   assert.deepEqual(opportunityMathIssues(report([consistent])), []);
+  assert.deepEqual(opportunityMathNotes(report([consistent])), []);
 });
 
 check('drop unworthy only when 3+ remain', () => {
@@ -187,6 +205,32 @@ check('drop unworthy only when 3+ remain', () => {
   const kept = dropUnworthyOpportunities(three);
   assert.deepEqual(kept.dropped, []);
   assert.equal(kept.data.opportunities.length, 3);
+  // The opportunity carrying their own hours is never dropped.
+  const flaggedBad = opp({ id: 'mine', title: 'mine', usesIntakeHours: true, worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 } });
+  const withMine = dropUnworthyOpportunities(
+    verifyOpportunityMath(report([good('a', 30000), good('b', 20000), good('c', 10000), flaggedBad]), { buildRateUsd: RATE, intakeHoursPerWeek: 3 }),
+  );
+  assert.deepEqual(withMine.dropped, []);
+  // Dropping prunes roadmap items naming it, re-sums the phase, and restates a top opportunity that named it.
+  const big = opp({ id: 'big', title: 'Big but generic', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 }, annualSavings: 90000, hoursPerMonth: 90000 / (45 * 3 * 12 * 0.75) });
+  const withRoad = verifyOpportunityMath(report([good('a', 30000), good('b', 20000), good('c', 10000), big], {
+    implementationRoadmap: {
+      phase1: phase([
+        { title: 'Big but generic', description: 'x', weeks: 1, estimatedCost: 1, estimatedSavings: 90000, buildHours: 10 },
+        { title: 'a', description: 'x', weeks: 1, estimatedCost: 1, estimatedSavings: 30000, buildHours: 5 },
+      ], 1),
+      phase2: phase([], 15000),
+      phase3: phase([], 35000),
+    },
+  }), { buildRateUsd: RATE });
+  withRoad.executiveSummary.topOpportunity = 'Big but generic saves $90K a year.';
+  const pruned = dropUnworthyOpportunities(withRoad);
+  assert.deepEqual(pruned.dropped, ['Big but generic']);
+  assert.deepEqual(pruned.data.implementationRoadmap.phase1.items.map((i) => i.title), ['a']);
+  assert.equal(pruned.data.implementationRoadmap.phase1.totalInvestment, 1000);
+  assert.equal(pruned.data.implementationRoadmap.phase1.totalSavings, 30000);
+  assert.ok(pruned.data.executiveSummary.topOpportunity.startsWith('a:'), pruned.data.executiveSummary.topOpportunity);
+  assert.ok(!pruned.data.executiveSummary.headline.includes('$90K'));
 });
 
 check('cost = build hours x rate, roiMonths on conservative, quickWin rule', () => {
@@ -208,6 +252,11 @@ check('cost = build hours x rate, roiMonths on conservative, quickWin rule', () 
   assert.equal(slow.opportunities[0].quickWin, false);
   const complex = verifyOpportunityMath(report([opp({ buildHoursLow: 2, buildHoursHigh: 4, complexity: 'medium', quickWin: true })]), { buildRateUsd: RATE });
   assert.equal(complex.opportunities[0].quickWin, false);
+  const noWeeks = verifyOpportunityMath(
+    report([opp({ buildHoursLow: 2, buildHoursHigh: 4, implementationWeeks: undefined as unknown as number })]),
+    { buildRateUsd: RATE },
+  );
+  assert.equal(noWeeks.opportunities[0].quickWin, false); // missing weeks is not a quick win
   const tiny = verifyOpportunityMath(report([opp({ buildHoursLow: 1, buildHoursHigh: 1 })]), { buildRateUsd: RATE });
   assert.equal(tiny.opportunities[0].roiMonths, 1); // floor of 1 month
 });

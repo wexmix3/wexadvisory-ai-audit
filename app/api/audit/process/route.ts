@@ -58,6 +58,7 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         industry: intake.industry,
         employeeRange: intake.employeeRange,
         totalAnnualSavings: reportData.executiveSummary.totalAnnualSavings,
+        totalAnnualSavingsConservative: reportData.executiveSummary.totalAnnualSavingsConservative,
         aiReadinessScore: reportData.scores.aiReadiness.score,
         topOpportunity: reportData.executiveSummary.topOpportunity,
         auditId,

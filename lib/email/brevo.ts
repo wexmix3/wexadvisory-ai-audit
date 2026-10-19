@@ -161,6 +161,8 @@ export async function sendAdminNotification(params: {
   industry: string;
   employeeRange: string;
   totalAnnualSavings: number;
+  /** Missing on reports stored before 2026-10-18. */
+  totalAnnualSavingsConservative?: number;
   aiReadinessScore: number;
   topOpportunity: string;
   auditId: string;
@@ -175,13 +177,18 @@ export async function sendAdminNotification(params: {
     totalAnnualSavings, aiReadinessScore, topOpportunity, resultsUrl, source,
   } = params;
 
-  const gateIssues = params.qualityGateIssues ?? [];
+  // Entries starting "note: " are log-only (see opportunityMathNotes); the rest failed the gate.
+  const allGate = params.qualityGateIssues ?? [];
+  const gateIssues = allGate.filter((i) => !i.startsWith('note: '));
+  const gateNotes = allGate.filter((i) => i.startsWith('note: '));
   const dropped = params.droppedOpportunities ?? [];
   const gateLine =
     (gateIssues.length === 0
       ? 'Quality gate: passed'
       : `Quality gate: ${gateIssues.length} issue${gateIssues.length === 1 ? '' : 's'}: ${gateIssues.join('; ')}`) +
+    (gateNotes.length > 0 ? `. Notes: ${gateNotes.map((n) => n.slice(6)).join('; ')}` : '') +
     (dropped.length > 0 ? ` (dropped as not worth automating: ${dropped.join('; ')})` : '');
+  const savingsText = fmtRange(totalAnnualSavings, params.totalAnnualSavingsConservative);
 
   const isTrackedSource = !!source && source !== 'audit';
   const subjectSafeCompanyName = sanitizeForHeader(companyName);
@@ -189,7 +196,7 @@ export async function sendAdminNotification(params: {
   await sendViaBrevo({
     senderName: 'Wex AI Audit',
     toEmail: 'maxwexley@wexadvisory.com',
-    subject: `New Lead: ${subjectSafeCompanyName} — ${(totalAnnualSavings / 1000).toFixed(0)}K/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
+    subject: `New Lead: ${subjectSafeCompanyName}, ${savingsText}/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>
@@ -201,7 +208,7 @@ export async function sendAdminNotification(params: {
     <tr><td style="padding: 6px 0; color: #6b7280;">Industry</td><td style="color: #111827;">${industry}</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Size</td><td style="color: #111827;">${employeeRange} employees</td></tr>
     ${isTrackedSource ? `<tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Source</td><td style="color: #C8A84B; font-weight: 700;">${source}</td></tr>` : ''}
-    <tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Est. Savings</td><td style="color: #059669; font-weight: 700; font-size: 18px;">$${totalAnnualSavings.toLocaleString()}/year</td></tr>
+    <tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Est. Savings</td><td style="color: #059669; font-weight: 700; font-size: 18px;">${savingsText}/year</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">AI Readiness</td><td style="color: #111827;">${aiReadinessScore}/100</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Top Opportunity</td><td style="color: #111827;">${topOpportunity}</td></tr>
   </table>

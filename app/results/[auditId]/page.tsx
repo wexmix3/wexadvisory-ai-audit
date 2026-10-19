@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import type { AuditScores } from '@/types/audit';
+import { fmtRange } from '@/lib/ai/opportunity-math';
 
 type Status = 'pending' | 'researching' | 'analyzing' | 'generating' | 'complete' | 'failed';
 
@@ -32,15 +33,10 @@ interface AuditSummary {
   scores: AuditScores;
 }
 
-// Same style as before, as a range when the conservative figure exists.
-function fmtK(n: number) {
-  return `$${(n / 1000).toFixed(0)}K`;
-}
-
+// Same formatter as the PDF, email and headline: a range when the
+// conservative figure exists, else the stored single figure.
 function savingsLabel(s: AuditSummary) {
-  return typeof s.totalAnnualSavingsConservative === 'number'
-    ? `${fmtK(s.totalAnnualSavingsConservative)}-${fmtK(s.totalAnnualSavings)}`
-    : fmtK(s.totalAnnualSavings);
+  return fmtRange(s.totalAnnualSavings, s.totalAnnualSavingsConservative);
 }
 
 function ScoreGauge({ label, score, percentile, verdict }: {

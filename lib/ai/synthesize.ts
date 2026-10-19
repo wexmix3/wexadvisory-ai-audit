@@ -5,6 +5,7 @@ import {
   QUICK_WIN_MAX_COST_USD,
   dropUnworthyOpportunities,
   opportunityMathIssues,
+  opportunityMathNotes,
   verifyOpportunityMath as verifyMath,
 } from './opportunity-math';
 
@@ -438,6 +439,8 @@ export interface SynthesisResult {
   preRetryIssues: string[];
   /** Gate result on the data actually returned (after any drop below). Empty = passed. */
   finalIssues: string[];
+  /** Log-only notes on the delivered report; they never trigger a retry. */
+  finalNotes: string[];
   /** Titles removed by the worth-automating drop (only when at least 3 remain). */
   droppedOpportunities: string[];
 }
@@ -456,7 +459,8 @@ function finalize(
     console.warn(`[quality-loop] dropped ${dropped.length} opportunit${dropped.length === 1 ? 'y' : 'ies'} not worth automating: ${dropped.join('; ')}`);
   }
   const finalIssues = checkAuditQuality(kept, intakeHoursPerWeek).issues;
-  return { data: kept, qualityRetryUsed, preRetryIssues, finalIssues, droppedOpportunities: dropped };
+  const finalNotes = opportunityMathNotes(kept);
+  return { data: kept, qualityRetryUsed, preRetryIssues, finalIssues, finalNotes, droppedOpportunities: dropped };
 }
 
 export async function synthesizeAudit(input: SynthesisInput): Promise<SynthesisResult> {
