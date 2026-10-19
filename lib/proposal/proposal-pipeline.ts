@@ -38,7 +38,7 @@ async function getMonthlySpend(): Promise<number> {
 }
 
 async function sendBudgetAlert(mtdSpend: number): Promise<void> {
-  const key = process.env.RESEND_API_KEY;
+  const key = process.env.RESEND_API_KEY?.trim();
   if (!key) return;
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -201,10 +201,13 @@ export async function runProposalPipeline(
       error_message: msg,
     }).eq('id', proposalId);
 
-    // Send admin alert on failure
-    const key = process.env.RESEND_API_KEY;
-    if (key) {
-      fetch('https://api.resend.com/emails', {
+    // Send admin alert on failure. Awaited and logged: inside after() a detached
+    // send can be frozen mid-flight, and a swallowed catch hid any Resend error.
+    const key = process.env.RESEND_API_KEY?.trim();
+    if (!key) {
+      console.error('[proposal] RESEND_API_KEY not set, failure alert not sent');
+    } else {
+      const alertRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,7 +216,13 @@ export async function runProposalPipeline(
           subject: `[Proposal Failed] ${intake.companyName}`,
           html: `<div style="font-family: monospace; padding: 20px;"><h3>Proposal generation failed</h3><p><strong>Company:</strong> ${intake.companyName}</p><p><strong>Audit ID:</strong> ${auditId}</p><p><strong>Error:</strong> ${msg}</p></div>`,
         }),
-      }).catch(() => {});
+      }).catch((e: unknown) => {
+        console.error('[proposal] failure alert request failed:', e);
+        return null;
+      });
+      if (alertRes && !alertRes.ok) {
+        console.error(`[proposal] failure alert rejected: Resend ${alertRes.status} ${await alertRes.text()}`);
+      }
     }
   }
 }
