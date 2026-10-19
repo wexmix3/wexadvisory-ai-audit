@@ -11,6 +11,7 @@ import type {
   ImplementationPhase,
   InputSources,
   OpportunityItem,
+  ProposalContent,
   WorthAutomating,
 } from '../../types/audit';
 
@@ -368,4 +369,45 @@ export function opportunityMathNotes(data: AuditReportData): string[] {
   }
 
   return issues.map((i) => `note: ${i}`);
+}
+
+// ── Proposal figures ──────────────────────────────────────────────────────────
+
+/**
+ * Copies savings and build hours from the audit onto the proposal, so the
+ * proposal never carries a model-written number. Each proposal opportunity is
+ * matched to its audit opportunity by title, falling back to the same position
+ * in the top 3. Whole-audit totals go on the content for the PDF cover.
+ */
+export function attachAuditFigures(content: ProposalContent, reportData: AuditReportData): void {
+  const summary = reportData.executiveSummary;
+  if (summary) {
+    content.totalSavingsBest = num(summary.totalAnnualSavings);
+    if (typeof summary.totalAnnualSavingsConservative === 'number') {
+      content.totalSavingsConservative = summary.totalAnnualSavingsConservative;
+    }
+  }
+  if (!Array.isArray(content.opportunities)) return;
+  const top3 = (reportData.opportunities ?? []).slice(0, 3);
+  const norm = (t: string) => (t ?? '').trim().toLowerCase();
+  content.opportunities = content.opportunities.map((frame, i) => {
+    const source = top3.find((o) => norm(o.title) === norm(frame.title)) ?? top3[i];
+    if (!source) return frame;
+    const out = { ...frame, estimatedSavings: num(source.annualSavings) };
+    if (typeof source.annualSavingsConservative === 'number') {
+      out.estimatedSavingsConservative = source.annualSavingsConservative;
+    }
+    const low = Number(source.buildHoursLow);
+    const high = Number(source.buildHoursHigh);
+    if (low > 0 && high > 0) {
+      out.buildHoursLow = low;
+      out.buildHoursHigh = high;
+    }
+    return out;
+  });
+}
+
+/** Unrounded dollar figures like "$115,057": the proposal should only quote ranges. */
+export function exactDollarFigures(text: string): string[] {
+  return (text ?? '').match(/\$\d{1,3}(?:,\d{3})+(?!\d)/g) ?? [];
 }

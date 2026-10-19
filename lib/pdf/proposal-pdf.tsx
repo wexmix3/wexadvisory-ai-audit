@@ -9,6 +9,7 @@ import {
 } from '@react-pdf/renderer';
 import type { ProposalContent } from '@/types/audit';
 import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, RETAINER_TERMS, TEAM_HANDOFF } from '@/lib/proposal/terms';
+import { fmtRange } from '@/lib/ai/opportunity-math';
 
 // All strings must use ASCII only -- Helvetica does not support non-ASCII glyphs.
 // Use -> instead of ->, * instead of bullets, etc.
@@ -106,10 +107,11 @@ function Footer({ companyName, page }: { companyName: string; page: string }) {
 }
 
 function CoverPage({ content }: { content: ProposalContent }) {
-  const totalSavings = content.opportunities.reduce((sum, o) => sum + o.estimatedSavings, 0);
-  const savingsStr = totalSavings >= 1000000
-    ? `$${(totalSavings / 1000000).toFixed(1)}M`
-    : `$${Math.round(totalSavings / 1000)}K`;
+  // Whole-audit range set in code (attachAuditFigures), so the cover matches the
+  // audit report. Older proposals without it fall back to the top-3 sum.
+  const savingsStr = typeof content.totalSavingsBest === 'number'
+    ? fmtRange(content.totalSavingsBest, content.totalSavingsConservative)
+    : fmtRange(content.opportunities.reduce((sum, o) => sum + o.estimatedSavings, 0));
 
   return (
     <Page size="LETTER" style={s.cover}>
@@ -192,9 +194,7 @@ function OpportunitiesPage({ content }: { content: ProposalContent }) {
                 <Text style={s.oppTitle}>{opp.title}</Text>
               </View>
               <Text style={s.oppSavings}>
-                ${opp.estimatedSavings >= 1000
-                  ? `${Math.round(opp.estimatedSavings / 1000)}K`
-                  : opp.estimatedSavings.toLocaleString()}/yr
+                {fmtRange(opp.estimatedSavings, opp.estimatedSavingsConservative)}/yr
               </Text>
             </View>
             <View style={s.oppBody}>
@@ -209,7 +209,7 @@ function OpportunitiesPage({ content }: { content: ProposalContent }) {
                 </View>
                 <View style={s.oppMetaItem}>
                   <Text style={s.oppMetaKey}>Annual savings:</Text>
-                  <Text style={s.oppMetaVal}>${opp.estimatedSavings.toLocaleString()}</Text>
+                  <Text style={s.oppMetaVal}>{fmtRange(opp.estimatedSavings, opp.estimatedSavingsConservative)}</Text>
                 </View>
                 {typeof opp.buildHoursLow === 'number' && typeof opp.buildHoursHigh === 'number' && (
                   <View style={s.oppMetaItem}>

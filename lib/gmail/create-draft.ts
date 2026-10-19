@@ -45,21 +45,30 @@ function buildMimeMessage(params: {
   const { to, from, subject, bodyHtml, attachment } = params;
   const boundary = `boundary_${Date.now().toString(36)}`;
 
+  // Non-ASCII subjects need RFC 2047 encoding or Gmail shows mojibake.
+  const encodedSubject = /^[\x20-\x7e]*$/.test(subject)
+    ? subject
+    : `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
+
   const header = [
     `To: ${to}`,
     `From: ${from}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',
   ].join('\r\n');
 
+  // base64, not quoted-printable: the HTML was sent raw under a QP header, so
+  // Gmail decoded every "=" as an escape and stripped all style="..." attributes
+  // (every proposal draft rendered unstyled; found 2026-10-19).
+  const htmlBase64 = (Buffer.from(bodyHtml, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
   const htmlPart = [
     `--${boundary}`,
     'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: quoted-printable',
+    'Content-Transfer-Encoding: base64',
     '',
-    bodyHtml,
+    htmlBase64,
     '',
   ].join('\r\n');
 
