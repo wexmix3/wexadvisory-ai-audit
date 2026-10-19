@@ -211,6 +211,8 @@ export interface ProposalContent {
   /** Whole-audit totals copied in code so the PDF cover matches the audit report (2026-10-19). */
   totalSavingsBest?: number;
   totalSavingsConservative?: number;
+  /** Count of every audit opportunity; the proposal details the top 3 (2026-10-19). */
+  totalOpportunities?: number;
   engagementScope: string;
   engagementTimeline: string;
   ongoingSupportDescription: string;

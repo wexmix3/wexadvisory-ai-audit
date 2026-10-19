@@ -387,6 +387,7 @@ export function attachAuditFigures(content: ProposalContent, reportData: AuditRe
       content.totalSavingsConservative = summary.totalAnnualSavingsConservative;
     }
   }
+  if (Array.isArray(reportData.opportunities)) content.totalOpportunities = reportData.opportunities.length;
   if (!Array.isArray(content.opportunities)) return;
   const top3 = (reportData.opportunities ?? []).slice(0, 3);
   const norm = (t: string) => (t ?? '').trim().toLowerCase();

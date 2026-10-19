@@ -87,7 +87,7 @@ Proposal opening framing: ${decompressed.proposalFraming}
     : '';
 
   const industryBlock = industryContext
-    ? `INDUSTRY CONTEXT (use to strengthen urgency framing — reference these facts in the executiveSummary or emailBody):
+    ? `INDUSTRY CONTEXT (use to strengthen urgency framing in the executiveSummary or emailBody; quote a figure only with its source named beside it, and add no industry figures of your own):
 ${industryContext}
 
 `

@@ -355,6 +355,7 @@ check('proposal figures come from the audit: savings range, build hours and tota
   attachAuditFigures(content, report);
   assert.equal(content.totalSavingsBest, 115057);
   assert.equal(content.totalSavingsConservative, 57529);
+  assert.equal(content.totalOpportunities, 2);
   assert.equal(content.opportunities[0].estimatedSavings, 30106);
   assert.equal(content.opportunities[0].estimatedSavingsConservative, 15053);
   // No title match: falls back to the same position in the top 3.
