@@ -586,23 +586,6 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
             <Text style={s.infoTxt}>{executiveSummary.urgencyNote}</Text>
           </View>
 
-          <View style={s.infoBox} wrap={false}>
-            <Text style={s.infoLbl}>METHODOLOGY</Text>
-            <Text style={s.infoTxt}>
-              This analysis was produced by scraping {companyUrl}, reviewing job postings and public signals,
-              detecting your technology stack, and benchmarking against industry peers. Savings estimates use
-              the formula: hours/month x fully-loaded hourly rate x affected FTEs x automation ceiling % x 12
-              months. Confidence factors (High/Medium) are applied to reflect signal quality.
-            </Text>
-          </View>
-
-          <View style={s.infoBox} wrap={false}>
-            <Text style={s.infoLbl}>DATA SOURCES</Text>
-            <Text style={s.infoTxt}>
-              Website content  |  Job posting signals  |  Public review sites  |  Technology detection  |
-              Industry wage benchmarks (BLS Occupational Outlook)  |  Peer-company performance benchmarks
-            </Text>
-          </View>
         </>
 
         <>
@@ -636,6 +619,27 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
             <Roadmap implementationRoadmap={implementationRoadmap} />
           </SectionHead>
         </>
+
+        {/* Methodology and sources are reference material: at the end they fill
+            the closing page instead of pushing the scorecard into a lone row at
+            the bottom of page 2 (2026-10-19 production render). */}
+        <View style={[s.infoBox, { marginTop: 14 }]} wrap={false}>
+          <Text style={s.infoLbl}>METHODOLOGY</Text>
+          <Text style={s.infoTxt}>
+            This analysis was produced by scraping {companyUrl}, reviewing job postings and public signals,
+            detecting your technology stack, and benchmarking against industry peers. Savings estimates use
+            the formula: hours/month x fully-loaded hourly rate x affected FTEs x automation ceiling % x 12
+            months. Confidence factors (High/Medium) are applied to reflect signal quality.
+          </Text>
+        </View>
+
+        <View style={s.infoBox} wrap={false}>
+          <Text style={s.infoLbl}>DATA SOURCES</Text>
+          <Text style={s.infoTxt}>
+            Website content  |  Job posting signals  |  Public review sites  |  Technology detection  |
+            Industry wage benchmarks (BLS Occupational Outlook)  |  Peer-company performance benchmarks
+          </Text>
+        </View>
 
         <NextStepsCta nextSteps={nextSteps} />
         <Footer company={companyName} />
