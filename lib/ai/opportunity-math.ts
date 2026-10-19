@@ -257,10 +257,16 @@ export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditR
   // naming a dropped opportunity and re-sum their phase.
   const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase();
   const droppedTitles = dropped.map(norm).filter(Boolean);
-  const mentionsDropped = (title: string | undefined) => {
-    const t = norm(title);
-    return t !== '' && droppedTitles.some((d) => t === d || t.includes(d) || d.includes(t));
+  // Exact match, or a substring match only when the shorter title is specific
+  // enough (8+ chars and at least half the longer one), so a generic title like
+  // "CRM" never removes unrelated items.
+  const sameItem = (a: string, b: string) => {
+    if (a === '' || b === '') return false;
+    if (a === b) return true;
+    const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+    return short.length >= 8 && short.length * 2 >= long.length && long.includes(short);
   };
+  const mentionsDropped = (title: string | undefined) => droppedTitles.some((d) => sameItem(norm(title), d));
   const prunePhase = (phase: ImplementationPhase | undefined) => {
     if (!phase || !Array.isArray(phase.items)) return phase;
     const items = phase.items.filter((it) => !mentionsDropped(it.title));
@@ -284,7 +290,8 @@ export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditR
   // from the new top opportunity.
   const top = result.opportunities[0];
   const summary = result.executiveSummary;
-  if (top && summary && droppedTitles.some((d) => norm(summary.topOpportunity).includes(d))) {
+  // topOpportunity is a sentence, so look for a specific dropped title inside it.
+  if (top && summary && droppedTitles.some((d) => d.length >= 8 && norm(summary.topOpportunity).includes(d))) {
     summary.topOpportunity = `${top.title}: about ${fmtRange(num(top.annualSavings), top.annualSavingsConservative)} a year.`;
   }
   return { data: result, dropped };

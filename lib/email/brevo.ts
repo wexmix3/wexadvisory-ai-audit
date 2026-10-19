@@ -112,15 +112,15 @@ export async function sendSnapshotEmail(params: {
     <div style="background: #0A1628; padding: 32px 40px;">
       <div style="color: #C8A84B; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Wex Advisory</div>
       <div style="color: white; font-size: 22px; font-weight: 700;">Your AI Opportunity Snapshot</div>
-      <div style="color: #94a3b8; font-size: 14px; margin-top: 4px;">${companyName}</div>
+      <div style="color: #94a3b8; font-size: 14px; margin-top: 4px;">${escapeHtml(companyName)}</div>
     </div>
 
     <!-- Body -->
     <div style="padding: 40px;">
-      <p style="color: #374151; font-size: 16px; margin: 0 0 20px;">Hi ${firstName},</p>
+      <p style="color: #374151; font-size: 16px; margin: 0 0 20px;">Hi ${escapeHtml(firstName)},</p>
 
       <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-        Your AI Opportunity Snapshot for <strong>${companyName}</strong> is ready. Based on our analysis of your business, we've identified <strong style="color: #0A1628;">${savings} in estimated annual savings</strong> from targeted AI automations.
+        Your AI Opportunity Snapshot for <strong>${escapeHtml(companyName)}</strong> is ready. Based on our analysis of your business, we've identified <strong style="color: #0A1628;">${savings} in estimated annual savings</strong> from targeted AI automations.
       </p>
 
       <!-- CTA Block -->
@@ -172,10 +172,17 @@ export async function sendAdminNotification(params: {
   qualityGateIssues?: string[];
   droppedOpportunities?: string[];
 }) {
-  const {
-    companyName, contactName, contactEmail, industry, employeeRange,
-    totalAnnualSavings, aiReadinessScore, topOpportunity, resultsUrl, source,
-  } = params;
+  const { totalAnnualSavings, aiReadinessScore, resultsUrl, source } = params;
+  // Intake fields are user-typed and topOpportunity is model text: escape all
+  // of them before they go into the HTML body.
+  const companyName = escapeHtml(params.companyName ?? '');
+  const contactName = escapeHtml(params.contactName ?? '');
+  const contactEmail = escapeHtml(params.contactEmail ?? '');
+  const industry = escapeHtml(params.industry ?? '');
+  const employeeRange = escapeHtml(params.employeeRange ?? '');
+  const topOpportunity = escapeHtml(params.topOpportunity ?? '');
+  const sourceHtml = escapeHtml(source ?? '');
+  const replySubject = encodeURIComponent(`Re: Your AI Opportunity Snapshot for ${params.companyName ?? ''}`);
 
   // Entries starting "note: " are log-only (see opportunityMathNotes); the rest failed the gate.
   const allGate = params.qualityGateIssues ?? [];
@@ -191,12 +198,12 @@ export async function sendAdminNotification(params: {
   const savingsText = fmtRange(totalAnnualSavings, params.totalAnnualSavingsConservative);
 
   const isTrackedSource = !!source && source !== 'audit';
-  const subjectSafeCompanyName = sanitizeForHeader(companyName);
+  const subjectSafeCompanyName = sanitizeForHeader(params.companyName ?? '');
 
   await sendViaBrevo({
     senderName: 'Wex AI Audit',
     toEmail: 'maxwexley@wexadvisory.com',
-    subject: `New Lead: ${subjectSafeCompanyName}, ${savingsText}/yr savings identified${isTrackedSource ? ` (via ${source})` : ''}`,
+    subject: `New Lead: ${subjectSafeCompanyName}, ${savingsText}/yr savings identified${isTrackedSource ? ` (via ${sanitizeForHeader(source ?? '')})` : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>
@@ -207,7 +214,7 @@ export async function sendAdminNotification(params: {
     <tr><td style="padding: 6px 0; color: #6b7280;">Email</td><td><a href="mailto:${contactEmail}" style="color: #C8A84B;">${contactEmail}</a></td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Industry</td><td style="color: #111827;">${industry}</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Size</td><td style="color: #111827;">${employeeRange} employees</td></tr>
-    ${isTrackedSource ? `<tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Source</td><td style="color: #C8A84B; font-weight: 700;">${source}</td></tr>` : ''}
+    ${isTrackedSource ? `<tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Source</td><td style="color: #C8A84B; font-weight: 700;">${sourceHtml}</td></tr>` : ''}
     <tr><td style="padding: 6px 0; color: #6b7280; font-weight: 700;">Est. Savings</td><td style="color: #059669; font-weight: 700; font-size: 18px;">${savingsText}/year</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">AI Readiness</td><td style="color: #111827;">${aiReadinessScore}/100</td></tr>
     <tr><td style="padding: 6px 0; color: #6b7280;">Top Opportunity</td><td style="color: #111827;">${topOpportunity}</td></tr>
@@ -217,7 +224,7 @@ export async function sendAdminNotification(params: {
 
   <div style="margin: 20px 0;">
     <a href="${resultsUrl}" style="background: #0A1628; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-right: 12px;">View report →</a>
-    <a href="mailto:${contactEmail}?subject=Re: Your AI Opportunity Snapshot for ${companyName}" style="background: #C8A84B; color: #0A1628; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; font-weight: 600;">Reply to Lead →</a>
+    <a href="mailto:${contactEmail}?subject=${replySubject}" style="background: #C8A84B; color: #0A1628; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; font-weight: 600;">Reply to Lead →</a>
   </div>
 
   <p style="color: #6b7280; font-size: 12px;">Audit ID: ${params.auditId}</p>
