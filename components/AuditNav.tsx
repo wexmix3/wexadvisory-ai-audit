@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function AuditNav() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#0A1628]/95 backdrop-blur border-b border-white/10">
@@ -14,7 +16,7 @@ export default function AuditNav() {
           wexadvisory.com
         </a>
 
-        <a href="/" className="flex items-center gap-2.5">
+        <Link href="/" className="flex items-center gap-2.5">
           {/* Double-V monogram: outer ∨ = W (white), inner ∧ = A (gold) */}
           <svg width="36" height="39" viewBox="0 0 110 115" fill="none" xmlns="http://www.w3.org/2000/svg">
             <polyline points="5,12 55,95 105,12"
@@ -26,10 +28,10 @@ export default function AuditNav() {
             <span className="text-white font-bold text-base tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>Wex</span>
             <span className="text-[#C8A84B] text-[8px] font-light tracking-[0.35em] uppercase">Advisory</span>
           </div>
-        </a>
+        </Link>
 
         <a
-          href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call"
+          href="https://calendly.com/maxwexley-wexadvisory/30min"
           target="_blank"
           rel="noopener noreferrer"
           className="bg-[#C8A84B] hover:bg-[#b8952e] text-[#0A1628] font-bold text-sm px-4 py-2 rounded-lg transition-colors"

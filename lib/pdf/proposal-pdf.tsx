@@ -294,7 +294,7 @@ function NextStepsPage({ content }: { content: ProposalContent }) {
         <View style={[s.ctaBox, { marginTop: 20 }]}>
           <Text style={s.ctaHead}>SCHEDULE A FREE STRATEGY CALL</Text>
           <Text style={s.ctaText}>{content.nextStep}</Text>
-          <Text style={s.ctaLink}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
+          <Text style={s.ctaLink}>calendly.com/maxwexley-wexadvisory/30min</Text>
           <Text style={s.ctaSig}>
             Max Wexley{'\n'}
             Wex Advisory{'\n'}

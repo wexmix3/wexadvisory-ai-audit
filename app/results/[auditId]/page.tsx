@@ -219,7 +219,7 @@ export default function ResultsPage() {
                   Next step, if you want it: a free 30-minute numbers review. We swap my estimates for your real numbers on your top workflow. You leave with an hours estimate to build it.
                 </p>
                 <a
-                  href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call"
+                  href="https://calendly.com/maxwexley-wexadvisory/30min"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block bg-[#C8A84B] hover:bg-[#b8952e] text-[#0A1628] font-bold px-8 py-3.5 rounded-lg text-base transition-colors"

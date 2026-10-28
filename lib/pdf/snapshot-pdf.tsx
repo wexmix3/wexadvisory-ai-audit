@@ -11,7 +11,7 @@ import {
 import type { AuditReportData, InputSource } from '@/types/audit';
 import { BUILD_RATE_USD } from '@/lib/proposal/terms';
 
-const CALENDLY_URL = 'https://calendly.com/maxwexley-wexadvisory/free-strategy-call';
+const CALENDLY_URL = 'https://calendly.com/maxwexley-wexadvisory/30min';
 
 const NAVY   = '#0A1628';
 const GOLD   = '#C8A84B';
@@ -452,7 +452,7 @@ function NextStepsCta({ nextSteps }: { nextSteps: AuditReportData['nextSteps'] }
         </Text>
         <Link src={CALENDLY_URL} style={s.ctaLink}>
           <View style={s.ctaBtn}>
-            <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/free-strategy-call</Text>
+            <Text style={s.ctaBtnTxt}>calendly.com/maxwexley-wexadvisory/30min</Text>
           </View>
         </Link>
         <Text style={s.ctaMeta}>30 minutes  |  Free  |  Your numbers replace our estimates</Text>

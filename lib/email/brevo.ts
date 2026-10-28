@@ -137,7 +137,7 @@ export async function sendSnapshotEmail(params: {
         Next step, if you want it: a free 30-minute numbers review. We swap my estimates for your real numbers on your top workflow. You leave with an hours estimate to build it.
       </p>
 
-      <a href="https://calendly.com/maxwexley-wexadvisory/free-strategy-call" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book the free numbers review →</a>
+      <a href="https://calendly.com/maxwexley-wexadvisory/30min" style="display: inline-block; background: #0A1628; color: white; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 15px;">Book the free numbers review →</a>
 
       <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
         <p style="color: #6b7280; font-size: 14px; margin: 0;">

@@ -118,7 +118,7 @@ ENGAGEMENT TERMS:
 - Maintenance rate: ${MAINTENANCE_RATE_USD}/hr (changes and upkeep after launch, billed only when needed)
 - Retainers: do not mention them anywhere. The PDF prints that term itself.
 - Team handoff, included with every build: ${TEAM_HANDOFF}
-- Calendly link: https://calendly.com/maxwexley-wexadvisory/free-strategy-call
+- Calendly link: https://calendly.com/maxwexley-wexadvisory/30min
 
 Generate the proposal JSON. Be specific to ${intake.companyName} — reference their actual processes and tools, not generic descriptions.`;
 }
