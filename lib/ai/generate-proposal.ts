@@ -125,7 +125,7 @@ ${top3}
 
 ENGAGEMENT TERMS:
 - Plan: free ${TRIAL_DAYS}-day trial on their real data. If they keep it: ${fmtUsd(SETUP_FEE_USD)} setup, then ${fmtUsd(MONTHLY_FEE_USD)} a month (founding price) including up to ${MONTHLY_INCLUDED_HOURS} change hours; extra hours ${fmtUsd(EXTRA_HOUR_RATE_USD)}; ${MIN_TERM_MONTHS}-month minimum.
-- Custom builds: one fixed price quoted before work starts, never hourly.
+- Custom builds: one fixed price quoted before work starts, replacing the setup fee, never hourly.
 - Team handoff, included with every build: ${TEAM_HANDOFF}
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/30min
 

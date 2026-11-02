@@ -163,9 +163,12 @@ await check('PDF wording is ASCII only, carries every constant, and passes its o
     assert.match(text, /^[\x20-\x7E]*$/, 'non-ASCII or control character in PDF wording');
     assert.doesNotMatch(text, / x /, '"x" used as multiply');
   }
-  for (const figure of [fmtUsd(SETUP_FEE_USD), fmtUsd(MONTHLY_FEE_USD), fmtUsd(EXTRA_HOUR_RATE_USD), fmtUsd(BUILD_RATE_USD)]) {
+  for (const figure of [fmtUsd(SETUP_FEE_USD), fmtUsd(MONTHLY_FEE_USD), fmtUsd(EXTRA_HOUR_RATE_USD)]) {
     assert.ok(MONTHLY_PLAN_TERMS.includes(figure), `MONTHLY_PLAN_TERMS is missing ${figure}`);
   }
+  // Max 11-02: the build rate stays internal; prospects see only the fixed price.
+  assert.ok(!MONTHLY_PLAN_TERMS.includes(`${fmtUsd(BUILD_RATE_USD)}/hr`), 'MONTHLY_PLAN_TERMS shows the internal build rate');
+  assert.match(MONTHLY_PLAN_TERMS, /replace[sd]? the setup/i, 'MONTHLY_PLAN_TERMS must say a custom build replaces the setup fee');
   for (const n of [TRIAL_DAYS, MONTHLY_INCLUDED_HOURS, MIN_TERM_MONTHS]) {
     assert.ok(MONTHLY_PLAN_TERMS.includes(String(n)), `MONTHLY_PLAN_TERMS is missing ${n}`);
   }

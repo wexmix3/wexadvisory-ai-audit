@@ -44,8 +44,8 @@ export const MONTHLY_PLAN_TERMS =
   `${fmtUsd(SETUP_FEE_USD)} setup (half at signing, half at go-live) and ${fmtUsd(MONTHLY_FEE_USD)} a month ` +
   `(founding price). The monthly covers upkeep and up to ${MONTHLY_INCLUDED_HOURS} hours of changes; ` +
   `extra hours are ${fmtUsd(EXTRA_HOUR_RATE_USD)}. ${MIN_TERM_MONTHS}-month minimum, then month to month. ` +
-  'Custom one-off builds are one fixed price, quoted before work starts (estimated from hours at ' +
-  `${fmtUsd(BUILD_RATE_USD)}/hr). Never billed hour by hour.`;
+  'A custom build is one fixed price, quoted before work starts, and replaces the setup fee; the ' +
+  'monthly plan then covers its upkeep. Never billed hour by hour.';
 
 // Terms the model must not introduce. A proposal that quotes a rate or a
 // promise we do not offer is worse than no proposal, so this throws and the

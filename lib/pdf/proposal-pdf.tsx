@@ -274,7 +274,7 @@ function EngagementPage({ content }: { content: ProposalContent }) {
           <View style={s.engBox}>
             <Text style={s.engLabel}>CUSTOM BUILDS</Text>
             <Text style={s.engValue}>Fixed price</Text>
-            <Text style={s.engSub}>quoted before work starts</Text>
+            <Text style={s.engSub}>replaces setup, quoted up front</Text>
           </View>
         </View>
 
