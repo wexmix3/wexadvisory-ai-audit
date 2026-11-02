@@ -1,6 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AuditReportData, SnapshotIntake, ProposalContent, DecompressedProblem } from '@/types/audit';
-import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, TEAM_HANDOFF, assertProposalTerms } from '@/lib/proposal/terms';
+import {
+  EXTRA_HOUR_RATE_USD,
+  MIN_TERM_MONTHS,
+  MONTHLY_FEE_USD,
+  MONTHLY_INCLUDED_HOURS,
+  SETUP_FEE_USD,
+  TEAM_HANDOFF,
+  TRIAL_DAYS,
+  assertProposalTerms,
+  fmtUsd,
+} from '@/lib/proposal/terms';
 import { attachAuditFigures, exactDollarFigures, fmtRange, replaceMoney } from '@/lib/ai/opportunity-math';
 import { stripEmDashesDeep } from '@/lib/ai/plain-text';
 
@@ -15,7 +25,7 @@ function getClient(): Anthropic {
   return client;
 }
 
-const SYSTEM_PROMPT = `You are a senior consultant at Wex Advisory, a boutique AI consulting firm. You write concise, formal consulting proposals for small to mid-market businesses. Your tone is direct, professional, and confident: never generic, never padded.
+export const SYSTEM_PROMPT = `You are a senior consultant at Wex Advisory, a boutique AI consulting firm. You write concise, formal consulting proposals for small to mid-market businesses. Your tone is direct, professional, and confident: never generic, never padded.
 
 You will receive a completed AI opportunity audit for a company and produce a structured proposal JSON.
 
@@ -28,8 +38,8 @@ RULES:
 6. emailBody must be 3-4 short paragraphs: (1) what we found, (2) what we propose, (3) CTA. Formal but human.
 7. emailSubject must be specific: reference company name and the SAVINGS RANGE given below
 8. Quote savings only as the ranges written below (conservative to best case), copied as written, e.g. "$29K-$59K". Never quote a single figure, and never add up, re-estimate or round them yourself.
-9. Quote only the rates and terms given under ENGAGEMENT TERMS. Maintenance after launch is hourly and only as needed.
-10. The team handoff under ENGAGEMENT TERMS is printed in the proposal PDF as written. Do not restate or extend it; one sentence in the emailBody saying a recorded team walkthrough is included is enough.
+9. Quote only the terms under ENGAGEMENT TERMS.
+10. The plan terms and team handoff under ENGAGEMENT TERMS are printed in the proposal PDF as written. Do not restate or extend them; in the emailBody, one sentence on the free trial and one saying a recorded team walkthrough is included are enough.
 
 Output ONLY valid JSON: no markdown, no preamble:
 
@@ -48,14 +58,14 @@ Output ONLY valid JSON: no markdown, no preamble:
     }
   ],
   "engagementScope": "string: bullet-point style description of concrete deliverables for Phase 1 (quick wins). Use \\n to separate items.",
-  "engagementTimeline": "string: e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. After launch: maintenance billed hourly, as needed.'",
-  "ongoingSupportDescription": "string: 1-2 sentences on what hourly maintenance after launch would cover for this company",
+  "engagementTimeline": "string: e.g. 'Phase 1 (Weeks 1-4): Quick wins implementation. Phase 2 (Weeks 5-16): Foundation build. After launch: the monthly plan.'",
+  "ongoingSupportDescription": "string: 1-2 sentences on what the monthly plan would cover for this company after launch",
   "nextStep": "string: specific CTA sentence pointing to the Calendly link",
   "emailSubject": "string: specific subject line referencing company and the SAVINGS RANGE",
   "emailBody": "string: 3-4 paragraph email body. Use \\n\\n between paragraphs. Formal consulting tone. Sign off as Max Wexley, Wex Advisory."
 }`;
 
-function buildUserMessage(
+export function buildUserMessage(
   intake: SnapshotIntake,
   reportData: AuditReportData,
   trafficSummary: string,
@@ -114,9 +124,8 @@ TOP 3 OPPORTUNITIES (ranked by annual savings):
 ${top3}
 
 ENGAGEMENT TERMS:
-- Build rate: ${BUILD_RATE_USD}/hr (design, build, testing)
-- Maintenance rate: ${MAINTENANCE_RATE_USD}/hr (changes and upkeep after launch, billed only when needed)
-- Retainers: do not mention them anywhere. The PDF prints that term itself.
+- Plan: free ${TRIAL_DAYS}-day trial on their real data. If they keep it: ${fmtUsd(SETUP_FEE_USD)} setup, then ${fmtUsd(MONTHLY_FEE_USD)} a month (founding price) including up to ${MONTHLY_INCLUDED_HOURS} change hours; extra hours ${fmtUsd(EXTRA_HOUR_RATE_USD)}; ${MIN_TERM_MONTHS}-month minimum.
+- Custom builds: one fixed price quoted before work starts, replacing the setup fee, never hourly.
 - Team handoff, included with every build: ${TEAM_HANDOFF}
 - Calendly link: https://calendly.com/maxwexley-wexadvisory/30min
 

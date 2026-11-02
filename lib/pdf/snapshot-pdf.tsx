@@ -9,7 +9,6 @@ import {
   renderToBuffer,
 } from '@react-pdf/renderer';
 import type { AuditReportData, InputSource } from '@/types/audit';
-import { BUILD_RATE_USD } from '@/lib/proposal/terms';
 
 const CALENDLY_URL = 'https://calendly.com/maxwexley-wexadvisory/30min';
 
@@ -178,6 +177,14 @@ function fmt(n: number) {
 /** "$143K-$287K" when a conservative figure exists, else the single figure. */
 function fmtRange(best: number, conservative?: number) {
   return typeof conservative === 'number' ? `${fmt(conservative)}-${fmt(best)}` : fmt(best);
+}
+
+// Short label under the INVESTMENT pill. The pill value above already prints
+// the dollar range (implementationCostLow/High = build hours x BUILD_RATE_USD,
+// set in opportunity-math.ts), so the label says how it is sold, not the
+// figure again: "one fixed price, about 12 to 20 hrs".
+function snapshotFixedPrice(hoursLow: number, hoursHigh: number): string {
+  return `one fixed price, about ${hoursLow} to ${hoursHigh} hrs`;
 }
 
 function usd(n: number) {
@@ -352,7 +359,7 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
             <Text style={s.implLbl}>INVESTMENT</Text>
             <Text style={s.implVal}>{usd(opp.implementationCostLow)}-{usd(opp.implementationCostHigh)}</Text>
             {typeof opp.buildHoursLow === 'number' && typeof opp.buildHoursHigh === 'number' && (
-              <Text style={s.implLbl}>about {opp.buildHoursLow}-{opp.buildHoursHigh} hrs at ${BUILD_RATE_USD}/hr</Text>
+              <Text style={s.implLbl}>{snapshotFixedPrice(opp.buildHoursLow, opp.buildHoursHigh)}</Text>
             )}
           </View>
           <View style={s.implPill}>
