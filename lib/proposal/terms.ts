@@ -52,14 +52,17 @@ export const MONTHLY_PLAN_TERMS =
 // pipeline records the failure and alerts. negatable: a match right after
 // "never"/"not"/"no" is the correct statement, not a violation.
 const OFF_TERMS: { pattern: RegExp; label: string; negatable?: boolean }[] = [
-  { pattern: /retainer/i, label: 'a retainer (we sell a monthly plan, not a retainer)' },
+  { pattern: /retainer/i, label: 'a retainer (we sell a monthly plan, not a retainer)', negatable: true },
   // Billing language is about our invoices; client staff are "paid", not "billed".
   { pattern: /\bbilled\s+(?:hourly|by the hour|per hour|hour by hour|on an hourly basis)\b/i, label: 'hourly billing', negatable: true },
   { pattern: /\bhourly\s+(?:maintenance|support|upkeep|billing)\b/i, label: 'hourly maintenance', negatable: true },
   { pattern: /\bmaintenance rate\b/i, label: 'a maintenance rate (retired 2026-11-02)' },
-  // "as needed" only next to support words, so "the team pulls reports as needed" stays legal.
-  { pattern: /\b(?:maintenance|support|upkeep|billed|billing|hours)\b[^.\n]{0,40}\bas[- ]needed\b/i, label: '"as needed" support', negatable: true },
-  { pattern: /\bas[- ]needed\b[^.\n]{0,25}\b(?:maintenance|support|upkeep|basis)\b/i, label: '"as needed" support', negatable: true },
+  // "as needed" only next to a billing word: "fixes as needed when APIs change" describes work, not invoices.
+  {
+    pattern: /\b(?:billed|billing|hourly|per hour|rate)\b[^.\n]{0,40}\bas[- ]needed\b|\bas[- ]needed\b[^.\n]{0,25}\b(?:billed|billing|rate)\b/i,
+    label: '"as needed" billing',
+    negatable: true,
+  },
   { pattern: /lifetime access/i, label: 'lifetime access' },
   { pattern: /on-?site (visit|training|session)/i, label: 'on-site visits' },
 ];
@@ -71,11 +74,12 @@ const MONTHLY_FIGURE = /\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*(?:\/\s*mo(?:nth)?\b|
 const SETUP_FIGURE_BEFORE = /\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*(?:one[- ]time\s+)?set-?up\b/gi;
 const SETUP_FIGURE_AFTER = /\bset-?up(?:\s+fee)?(?:\s+(?:is|of|at|costs?|runs?))?\s*[:(]?\s*\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?/gi;
 
-// A $/month or setup figure is someone else's (a tool's price, the client's
-// savings or labor) when its sentence says so and does not also talk about
-// our plan. Everything else is read as our fee and must match the constants.
-const OUR_CUE = /\b(?:wex|founding|monthly plan|our plan|the plan|plan (?:is|at)|monthly fee|our fee|upkeep|after launch|go-live|keep it|retainer|change hours|included hours|minimum|trial)\b/i;
-const THIRD_PARTY_CUE = /\b(?:sav(?:e|es|ed|ing|ings)|recover\w*|free[sd]? up|lost|losing|wast\w*|labou?r|staff|payroll|wages?|salar\w*|costs?|subscriptions?|licen[cs]es?|seats?|tiers?|pricing|priced|per user|software|tools?|apps?)\b/i;
+// A $/month figure is checked only when its sentence is about our offer.
+// Tool prices ("Zapier $20/month") and client savings ("$3,000 a month back")
+// never carry these words, so no list of third-party prices is needed.
+const OUR_OFFER = /\b(?:wex|founding|our plan|monthly plan|our fee|monthly fee|after launch|go-live|keep it|upkeep|change hours|included hours|minimum|trial)\b/i;
+// "$45/hr coordinator" is the client's staff cost, not a rate we quote.
+const STAFF = /\b(?:coordinator|clerk|admin|assistant|staff|team member|employee|bookkeeper|manager|hire|labou?r)\b/i;
 
 // A "." between digits ($10.59) or inside a domain (Make.com) is not a sentence end.
 const SENTENCE_END = /[;\n]|\.(?![\w])/g;
@@ -95,21 +99,9 @@ function amountOf(digits: string, k: string | undefined): number {
   return Number(digits.replace(/,/g, '')) * (k ? 1000 : 1);
 }
 
-function dollarAmounts(text: string): Set<number> {
-  const out = new Set<number>();
-  for (const m of text.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?/gi)) out.add(amountOf(m[1], m[2]));
-  return out;
-}
-
-export interface TermsCheckOptions {
-  /** Third-party price strings the model was shown (audit tool pricing). Matching amounts are exempt. */
-  thirdPartyPrices?: string[];
-}
-
 /** Every terms problem in a proposal, without throwing. */
-export function proposalTermsProblems(content: ProposalContent, opts: TermsCheckOptions = {}): string[] {
+export function proposalTermsProblems(content: ProposalContent): string[] {
   const problems: string[] = [];
-  const knownPrices = dollarAmounts((opts.thirdPartyPrices ?? []).join(' '));
 
   if (typeof content.ongoingSupportDescription !== 'string' || !content.ongoingSupportDescription.trim()) {
     problems.push('ongoingSupportDescription is missing or empty');
@@ -117,9 +109,8 @@ export function proposalTermsProblems(content: ProposalContent, opts: TermsCheck
 
   // Fields where we state our own terms. executiveSummary and opportunities
   // are left out on purpose: they describe the client's business, which
-  // legitimately quotes tool prices ("Zapier $20/month"), the client's own
-  // retainers, and staff hourly costs. A false positive there would throw
-  // away a paid proposal with no retry.
+  // legitimately quotes tool prices, the client's own retainers, and staff
+  // hourly costs. A false positive throws away a paid proposal with no retry.
   const ours: [string, string][] = [
     ['engagementScope', content.engagementScope ?? ''],
     ['engagementTimeline', content.engagementTimeline ?? ''],
@@ -136,22 +127,18 @@ export function proposalTermsProblems(content: ProposalContent, opts: TermsCheck
       problems.push(`${field} mentions ${label}`);
     }
 
-    const isTheirs = (index: number, amount: number) => {
-      if (knownPrices.has(amount)) return true;
-      const sentence = sentenceAround(text, index);
-      return THIRD_PARTY_CUE.test(sentence) && !OUR_CUE.test(sentence);
-    };
-
     for (const m of text.matchAll(MONTHLY_FIGURE)) {
       const amount = amountOf(m[1], m[2]);
-      if (amount !== MONTHLY_FEE_USD && !isTheirs(m.index ?? 0, amount)) {
+      if (amount !== MONTHLY_FEE_USD && OUR_OFFER.test(sentenceAround(text, m.index ?? 0))) {
         problems.push(`${field} quotes ${fmtUsd(amount)} a month; the monthly plan is ${fmtUsd(MONTHLY_FEE_USD)}`);
       }
     }
+    // "setup" beside a dollar figure is our fee: audit tools are priced per
+    // month, not by setup.
     for (const re of [SETUP_FIGURE_BEFORE, SETUP_FIGURE_AFTER]) {
       for (const m of text.matchAll(re)) {
         const amount = amountOf(m[1], m[2]);
-        if (amount !== SETUP_FEE_USD && !isTheirs(m.index ?? 0, amount)) {
+        if (amount !== SETUP_FEE_USD) {
           problems.push(`${field} quotes ${fmtUsd(amount)} setup; setup is ${fmtUsd(SETUP_FEE_USD)}`);
         }
       }
@@ -160,12 +147,13 @@ export function proposalTermsProblems(content: ProposalContent, opts: TermsCheck
 
   // Any hourly rate we quote in our own terms must be one we charge. emailBody
   // is exempt (unchanged from before 2026-11-02): it opens with what we found,
-  // which often cites the client's staff cost ("a $45/hr coordinator").
+  // which often cites the client's staff cost. Elsewhere a staff word in the
+  // sentence marks the figure as the client's.
   const rates = new Set([BUILD_RATE_USD, EXTRA_HOUR_RATE_USD, TRAINING_RATE_USD]);
   for (const [field, text] of ours.filter(([f]) => f !== 'emailBody')) {
     for (const match of text.matchAll(HOURLY_RATE)) {
       const rate = Number(match[1].replace(/,/g, ''));
-      if (!rates.has(rate)) {
+      if (!rates.has(rate) && !STAFF.test(sentenceAround(text, match.index ?? 0))) {
         problems.push(`${field} quotes $${rate}/hr, which is not a current rate`);
       }
     }
@@ -174,8 +162,8 @@ export function proposalTermsProblems(content: ProposalContent, opts: TermsCheck
   return problems;
 }
 
-export function assertProposalTerms(content: ProposalContent, opts: TermsCheckOptions = {}): void {
-  const problems = proposalTermsProblems(content, opts);
+export function assertProposalTerms(content: ProposalContent): void {
+  const problems = proposalTermsProblems(content);
   if (problems.length > 0) {
     throw new Error(`Proposal failed the terms check: ${problems.join('; ')}`);
   }

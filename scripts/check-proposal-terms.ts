@@ -64,8 +64,8 @@ function proposal(over: Partial<ProposalContent> = {}): ProposalContent {
   };
 }
 
-function fails(over: Partial<ProposalContent>, opts = {}): boolean {
-  return proposalTermsProblems(proposal(over), opts).length > 0;
+function fails(over: Partial<ProposalContent>): boolean {
+  return proposalTermsProblems(proposal(over)).length > 0;
 }
 
 console.log('check-proposal-terms');
@@ -99,11 +99,14 @@ await check('off terms: retainer and hourly / as-needed support fail', () => {
   assert.equal(fails({ ongoingSupportDescription: 'A monthly retainer covers changes.' }), true);
   assert.equal(fails({ engagementTimeline: 'After launch: support billed hourly as needed.' }), true);
   assert.equal(fails({ ongoingSupportDescription: 'Hourly maintenance covers fixes.' }), true);
-  assert.equal(fails({ emailBody: 'Support after launch is available as needed.' }), true);
+  assert.equal(fails({ emailBody: 'Support after launch is billed at our rate as needed.' }), true);
 });
 
-await check('negated hourly wording passes ("never billed by the hour")', () => {
+await check('negated terms and "as needed" work (not billing) pass', () => {
   assert.equal(fails({ emailBody: 'Custom work is one fixed price, never billed by the hour.' }), false);
+  assert.equal(fails({ emailBody: 'We do not use retainers.' }), false);
+  assert.equal(fails({ engagementTimeline: 'No hourly billing, no retainer.' }), false);
+  assert.equal(fails({ ongoingSupportDescription: 'Covers monitoring, support and fixes as needed when APIs change.' }), false);
 });
 
 await check('client staff cost and tool prices outside our fields pass', () => {
@@ -121,12 +124,22 @@ await check('client staff cost and tool prices outside our fields pass', () => {
 await check('tool prices and savings inside our fields pass', () => {
   assert.equal(fails({ engagementScope: '- Set up Zapier, which costs $20/month' }), false);
   assert.equal(fails({ emailBody: 'This saves your team about $4K a month in staff time.' }), false);
-  // A bare tool price the model copied from the audit's tool list is exempt.
-  assert.equal(fails({ engagementScope: '- Build it in Airtable ($24/mo)' }, { thirdPartyPrices: ['$24/user/mo'] }), false);
-  // Without that list it reads as our fee, so the gate catches it.
-  assert.equal(fails({ engagementScope: '- Build it in Airtable ($24/mo)' }), true);
+  // Bare tool prices in the scope list: the model is shown tool pricing and names the tools.
+  for (const line of [
+    '- Zapier $20/month',
+    '- Build it in Airtable ($24/mo)',
+    '- Make.com plan ($29/month) runs the scenarios',
+    '- Build on Make.com at $9/month',
+    '- Twilio number at $2/month plus usage',
+  ]) assert.equal(fails({ engagementScope: line }), false, line);
+  assert.equal(fails({ emailBody: 'Expect about $3,000 a month back.' }), false);
+  // Client staff cost in our fields is not a rate we quote.
+  assert.equal(fails({ engagementScope: '- Replace the $45/hr coordinator data entry' }), false);
+  assert.equal(fails({ engagementScope: '- Frees 10 hrs a week of a $45 an hour clerk' }), false);
   // A tool word does not excuse a wrong number for our own plan.
   assert.equal(fails({ ongoingSupportDescription: 'Our plan costs $350/month for the tools.' }), true);
+  assert.equal(fails({ ongoingSupportDescription: 'After launch the monthly plan is $500/month.' }), true);
+  assert.equal(fails({ nextStep: 'Setup is $1,500 if you keep it.' }), true);
 });
 
 await check('empty ongoingSupportDescription fails', () => {

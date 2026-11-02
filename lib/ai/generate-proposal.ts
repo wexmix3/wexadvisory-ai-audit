@@ -173,10 +173,7 @@ export async function generateProposalContent(
       fmtRange(reportData.executiveSummary.totalAnnualSavings, reportData.executiveSummary.totalAnnualSavingsConservative),
     );
   }
-  // Tool prices the model was shown are not our fees, so the terms check exempts them.
-  assertProposalTerms(content, {
-    thirdPartyPrices: reportData.opportunities.flatMap((o) => (o.recommendedTools ?? []).map((t) => t.pricing)),
-  });
+  assertProposalTerms(content);
   attachAuditFigures(content, reportData);
   // Log-only: the email body is model text; an unrounded figure means it
   // quoted a single number instead of a range (2026-10-19 draft said "$115,057").

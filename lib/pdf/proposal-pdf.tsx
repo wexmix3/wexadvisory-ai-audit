@@ -74,7 +74,7 @@ const s = StyleSheet.create({
   // Opportunity cards
   oppCard:       { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, marginBottom: 14, overflow: 'hidden' },
   oppHeader:     { backgroundColor: NAVY, padding: '10 16', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  oppHeaderLeft: { flex: 1 },
+  oppHeaderLeft: { flex: 1, paddingRight: 16 }, // a long title wraps instead of running into the savings figure
   oppNum:        { color: GOLD, fontSize: 8, letterSpacing: 1.5, marginBottom: 2 },
   oppTitle:      { color: WHITE, fontSize: 11, fontFamily: 'Helvetica-Bold' },
   oppSavings:    { color: GREEN, fontSize: 13, fontFamily: 'Helvetica-Bold' },
