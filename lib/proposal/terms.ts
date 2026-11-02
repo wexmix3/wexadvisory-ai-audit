@@ -74,10 +74,12 @@ const MONTHLY_FIGURE = /\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*(?:\/\s*mo(?:nth)?\b|
 const SETUP_FIGURE_BEFORE = /\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*(?:one[- ]time\s+)?set-?up\b/gi;
 const SETUP_FIGURE_AFTER = /\bset-?up(?:\s+fee)?(?:\s+(?:is|of|at|costs?|runs?))?\s*[:(]?\s*\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k)?/gi;
 
-// A $/month figure is checked only when its sentence is about our offer.
-// Tool prices ("Zapier $20/month") and client savings ("$3,000 a month back")
-// never carry these words, so no list of third-party prices is needed.
-const OUR_OFFER = /\b(?:wex|founding|our plan|monthly plan|our fee|monthly fee|after launch|go-live|keep it|upkeep|change hours|included hours|minimum|trial)\b/i;
+// A $/month or setup figure is checked only when its sentence names our plan.
+// Tool prices ("Zapier $20/month", "$0 setup"), client savings and the
+// client's current setup never carry these words. Broader cues ("trial",
+// "after launch", "Wex") also sit beside tool prices, so they are left out.
+const OUR_PLAN = /\b(?:founding|our plan|monthly plan|our fee|monthly fee|change hours|included hours|the plan (?:is|costs))\b/i;
+const OUR_SETUP = /\b(?:founding|our plan|monthly plan|our fee|signing|go-live|keep it|half)\b/i;
 // "$45/hr coordinator" is the client's staff cost, not a rate we quote.
 const STAFF = /\b(?:coordinator|clerk|admin|assistant|staff|team member|employee|bookkeeper|manager|hire|labou?r)\b/i;
 
@@ -129,16 +131,14 @@ export function proposalTermsProblems(content: ProposalContent): string[] {
 
     for (const m of text.matchAll(MONTHLY_FIGURE)) {
       const amount = amountOf(m[1], m[2]);
-      if (amount !== MONTHLY_FEE_USD && OUR_OFFER.test(sentenceAround(text, m.index ?? 0))) {
+      if (amount !== MONTHLY_FEE_USD && OUR_PLAN.test(sentenceAround(text, m.index ?? 0))) {
         problems.push(`${field} quotes ${fmtUsd(amount)} a month; the monthly plan is ${fmtUsd(MONTHLY_FEE_USD)}`);
       }
     }
-    // "setup" beside a dollar figure is our fee: audit tools are priced per
-    // month, not by setup.
     for (const re of [SETUP_FIGURE_BEFORE, SETUP_FIGURE_AFTER]) {
       for (const m of text.matchAll(re)) {
         const amount = amountOf(m[1], m[2]);
-        if (amount !== SETUP_FEE_USD) {
+        if (amount !== SETUP_FEE_USD && OUR_SETUP.test(sentenceAround(text, m.index ?? 0))) {
           problems.push(`${field} quotes ${fmtUsd(amount)} setup; setup is ${fmtUsd(SETUP_FEE_USD)}`);
         }
       }

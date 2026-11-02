@@ -79,14 +79,24 @@ await check('monthly fee: $300/month passes, $350/month fails', () => {
   assert.equal(fails({ ongoingSupportDescription: 'The monthly plan is $300/month and covers upkeep.' }), false);
   assert.equal(fails({ engagementTimeline: 'After launch: $300 a month.' }), false);
   assert.equal(fails({ ongoingSupportDescription: 'The monthly plan is $350/month and covers upkeep.' }), true);
-  assert.equal(fails({ emailBody: 'After launch it is $350 per month.' }), true);
-  assert.equal(fails({ nextStep: 'Keep it for $500 monthly.' }), true);
+  assert.equal(fails({ emailBody: 'After launch the monthly plan is $350 per month.' }), true);
+  assert.equal(fails({ nextStep: 'Keep it at the founding price of $500 monthly.' }), true);
+  // By design a figure with no plan word is not ours: tool prices sit beside "trial", "Wex", "after launch".
+  for (const line of [
+    '- Wex configures Zapier ($20/month) and Make.com',
+    '- Zapier has a free trial, then $20/month',
+    'After launch, Zapier costs $20/month on your side.',
+    'Phase 1: go-live of the Make.com scenario ($9/month)',
+  ]) assert.equal(fails({ engagementScope: line }), false, line);
 });
 
 await check('setup fee: $1,000 setup passes, $1,500 setup fails', () => {
   assert.equal(fails({ engagementTimeline: 'If you keep it: $1,000 setup, half at signing.' }), false);
   assert.equal(fails({ engagementTimeline: 'If you keep it: $1,500 setup, half at signing.' }), true);
-  assert.equal(fails({ emailBody: 'There is a setup fee of $2,000 after the trial.' }), true);
+  assert.equal(fails({ emailBody: 'The setup fee is $2,000, half at signing.' }), true);
+  // Tool and client setup prices are not ours.
+  for (const line of ['- Twilio: $0 setup, $1/month per number', 'Your current setup costs $2,000.', '- HubSpot onboarding setup: $3,000 one-time (their price)'])
+    assert.equal(fails({ engagementScope: line }), false, line);
 });
 
 await check('hourly: $150/hr and $200/hr pass, $175/hr fails', () => {
