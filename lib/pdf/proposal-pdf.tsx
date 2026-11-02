@@ -8,7 +8,16 @@ import {
   renderToBuffer,
 } from '@react-pdf/renderer';
 import type { ProposalContent } from '@/types/audit';
-import { BUILD_RATE_USD, MAINTENANCE_RATE_USD, RETAINER_TERMS, TEAM_HANDOFF } from '@/lib/proposal/terms';
+import {
+  MONTHLY_FEE_USD,
+  MONTHLY_INCLUDED_HOURS,
+  MONTHLY_PLAN_TERMS,
+  SETUP_FEE_USD,
+  TEAM_HANDOFF,
+  TRIAL_DAYS,
+  fixedPriceRange,
+  fmtUsd,
+} from '@/lib/proposal/terms';
 import { fmtRange } from '@/lib/ai/opportunity-math';
 
 // All strings must use ASCII only -- Helvetica does not support non-ASCII glyphs.
@@ -78,16 +87,17 @@ const s = StyleSheet.create({
   oppMetaVal:    { color: NAVY, fontSize: 8.5, fontFamily: 'Helvetica-Bold' },
 
   // Engagement section
-  engRow:     { flexDirection: 'row', marginBottom: 10, gap: 24 },
-  engBox:     { flex: 1, backgroundColor: LGRAY, borderRadius: 6, padding: '14 16' },
+  // Four boxes across the 524pt content width: 4 x ~118pt + 3 x 10pt gaps.
+  engRow:     { flexDirection: 'row', marginBottom: 10, gap: 10 },
+  engBox:     { flex: 1, backgroundColor: LGRAY, borderRadius: 6, padding: '12 12' },
   engLabel:   { color: GOLD, fontSize: 7.5, letterSpacing: 1, marginBottom: 4 },
-  engValue:   { color: NAVY, fontSize: 16, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
-  engSub:     { color: DGRAY, fontSize: 9 },
+  engValue:   { color: NAVY, fontSize: 15, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
+  engSub:     { color: DGRAY, fontSize: 8.5, lineHeight: 1.4 },
   scopeItem:  { flexDirection: 'row', marginBottom: 5 },
   scopeBullet:{ color: GOLD, fontSize: 10, marginRight: 6, marginTop: 1 },
   scopeText:  { color: DGRAY, fontSize: 10, flex: 1, lineHeight: 1.5 },
   timelineBox:{ backgroundColor: LGRAY, borderRadius: 6, padding: '12 16', marginTop: 10 },
-  retainerBox:{ borderLeftWidth: 3, borderLeftColor: GOLD, paddingLeft: 12, marginTop: 14 },
+  planBox:    { borderLeftWidth: 3, borderLeftColor: GOLD, paddingLeft: 12, marginTop: 14 },
 
   // CTA
   ctaBox:  { backgroundColor: NAVY, borderRadius: 6, padding: '20 24', marginTop: 8 },
@@ -96,6 +106,12 @@ const s = StyleSheet.create({
   ctaLink: { color: GOLD, fontSize: 10, fontFamily: 'Helvetica-Bold' },
   ctaSig:  { color: MGRAY, fontSize: 9, marginTop: 14, lineHeight: 1.5 },
 });
+
+// "about $2,400 to $4,000 (12 to 20 hours of build), quoted as one fixed price before work starts"
+function fixedPriceLabel(hoursLow: number, hoursHigh: number): string {
+  const [low, high] = fixedPriceRange(hoursLow, hoursHigh);
+  return `about ${fmtUsd(low)} to ${fmtUsd(high)} (${hoursLow} to ${hoursHigh} hours of build), quoted as one fixed price before work starts`;
+}
 
 function Footer({ companyName, page }: { companyName: string; page: string }) {
   return (
@@ -176,7 +192,7 @@ function ExecutiveSummaryPage({ content }: { content: ProposalContent }) {
         </Text>
         <Text style={[s.body, { marginTop: 12 }]}>
           Wex Advisory will serve as your dedicated implementation partner, handling tool selection,
-          workflow design, build, and testing. After launch, support is billed hourly and only when you need it.
+          workflow design, build, and testing. After launch, upkeep and changes run on one flat monthly plan.
         </Text>
       </View>
       <Footer companyName={content.companyName} page="2" />
@@ -217,8 +233,8 @@ function OpportunitiesPage({ content }: { content: ProposalContent }) {
                 </View>
                 {typeof opp.buildHoursLow === 'number' && typeof opp.buildHoursHigh === 'number' && (
                   <View style={s.oppMetaItem}>
-                    <Text style={s.oppMetaKey}>Estimated build:</Text>
-                    <Text style={s.oppMetaVal}>about {opp.buildHoursLow}-{opp.buildHoursHigh} hours at ${BUILD_RATE_USD}/hr</Text>
+                    <Text style={s.oppMetaKey}>Estimated fixed price:</Text>
+                    <Text style={s.oppMetaVal}>{fixedPriceLabel(opp.buildHoursLow, opp.buildHoursHigh)}</Text>
                   </View>
                 )}
               </View>
@@ -241,14 +257,24 @@ function EngagementPage({ content }: { content: ProposalContent }) {
 
         <View style={s.engRow}>
           <View style={s.engBox}>
-            <Text style={s.engLabel}>BUILD RATE</Text>
-            <Text style={s.engValue}>${BUILD_RATE_USD}</Text>
-            <Text style={s.engSub}>per hour</Text>
+            <Text style={s.engLabel}>FREE TRIAL</Text>
+            <Text style={s.engValue}>{TRIAL_DAYS} days</Text>
+            <Text style={s.engSub}>on your real data</Text>
           </View>
           <View style={s.engBox}>
-            <Text style={s.engLabel}>MAINTENANCE RATE</Text>
-            <Text style={s.engValue}>${MAINTENANCE_RATE_USD}</Text>
-            <Text style={s.engSub}>per hour, as needed after launch</Text>
+            <Text style={s.engLabel}>SETUP</Text>
+            <Text style={s.engValue}>{fmtUsd(SETUP_FEE_USD)}</Text>
+            <Text style={s.engSub}>only if you keep it, half at signing</Text>
+          </View>
+          <View style={s.engBox}>
+            <Text style={s.engLabel}>MONTHLY</Text>
+            <Text style={s.engValue}>{fmtUsd(MONTHLY_FEE_USD)}</Text>
+            <Text style={s.engSub}>includes {MONTHLY_INCLUDED_HOURS} change hours</Text>
+          </View>
+          <View style={s.engBox}>
+            <Text style={s.engLabel}>CUSTOM BUILDS</Text>
+            <Text style={s.engValue}>Fixed price</Text>
+            <Text style={s.engSub}>quoted before work starts</Text>
           </View>
         </View>
 
@@ -265,13 +291,13 @@ function EngagementPage({ content }: { content: ProposalContent }) {
           <Text style={s.body}>{content.engagementTimeline}</Text>
         </View>
 
-        <View style={s.retainerBox}>
+        <View style={s.planBox}>
           <Text style={[s.eyebrow, { marginBottom: 4 }]}>AFTER LAUNCH</Text>
           <Text style={s.body}>{content.ongoingSupportDescription}</Text>
-          <Text style={[s.body, { marginTop: 6 }]}>{RETAINER_TERMS}</Text>
+          <Text style={[s.body, { marginTop: 6 }]}>{MONTHLY_PLAN_TERMS}</Text>
         </View>
 
-        <View style={s.retainerBox}>
+        <View style={s.planBox}>
           <Text style={[s.eyebrow, { marginBottom: 4 }]}>TEAM HANDOFF (INCLUDED)</Text>
           <Text style={s.body}>{TEAM_HANDOFF}</Text>
         </View>

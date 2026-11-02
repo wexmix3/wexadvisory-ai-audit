@@ -8,7 +8,8 @@
     "start": "next start -p 3200",
     "lint": "eslint .",
     "prepare": "husky",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:terms": "node --experimental-strip-types scripts/check-proposal-terms.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
