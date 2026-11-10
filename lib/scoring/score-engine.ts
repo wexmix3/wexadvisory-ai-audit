@@ -99,13 +99,13 @@ export function computeScores(input: ScoringInput): AuditScores {
           ? 'Well-positioned for AI adoption. Strong tech foundation in place.'
           : aiReadiness >= 45
           ? 'Moderate AI readiness. Some foundational gaps to address before scaling.'
-          : 'Low AI readiness. Significant infrastructure investment needed before advanced automation.',
+          : 'Little AI or automation tooling visible in public signals. Confirm what runs internally before planning.',
       topFactors: [
-        `Tech sophistication: ${classification.techSophistication}`,
+        `Tech sophistication (public signals): ${classification.techSophistication}`,
         `Data maturity: ${classification.dataMature}`,
         techSignalsDetected.length > 0
           ? `${techSignalsDetected.length} tools detected (${techSignalsDetected.slice(0, 3).join(', ')})`
-          : 'Limited tool usage detected',
+          : 'Few tools visible publicly',
       ],
     },
     automationOpportunity: {
@@ -116,7 +116,7 @@ export function computeScores(input: ScoringInput): AuditScores {
           ? 'High automation potential. Significant manual workflows identified that are immediately addressable.'
           : automationOpportunity >= 45
           ? 'Moderate automation opportunity. Several workflows can be systematically improved.'
-          : 'Lower automation ceiling. Business already has some process efficiency in place.',
+          : 'Fewer manual-work signals in public data than peers.',
       topFactors: [
         `${manualProcessSignals.length} manual process signals detected`,
         `${classification.inferredDepartments.length} departments inferred (${classification.inferredDepartments.slice(0, 3).join(', ')})`,
@@ -130,8 +130,8 @@ export function computeScores(input: ScoringInput): AuditScores {
         dataVisibility >= 65
           ? 'Good data visibility. Leadership has meaningful insight into business performance.'
           : dataVisibility >= 35
-          ? 'Partial visibility. Some metrics tracked but key blind spots exist across departments.'
-          : 'Very limited data visibility. Most operational performance is invisible to leadership.',
+          ? 'Some data and analytics signals visible publicly.'
+          : 'Few data or analytics signals visible publicly.',
       topFactors: [
         `Data infrastructure: ${classification.dataMature}`,
         hasTrafficData
@@ -152,7 +152,7 @@ export function computeScores(input: ScoringInput): AuditScores {
             : 'Strong revenue acceleration potential. Marketing infrastructure ready to leverage AI; sales infrastructure still needs to be built out.'
           : revenueAcceleration >= 45
           ? 'Moderate revenue opportunity. Targeted AI investments could meaningfully improve top-line growth.'
-          : 'Foundational revenue infrastructure gaps. Address CRM and pipeline visibility first.',
+          : 'Few sales or marketing system signals visible publicly.',
       topFactors: [
         hasSales ? 'Sales function detected' : 'Limited sales infrastructure signals',
         hasMarketing ? 'Marketing function detected' : 'Limited marketing infrastructure',

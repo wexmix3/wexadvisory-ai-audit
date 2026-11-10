@@ -41,11 +41,20 @@ const TECH_PATTERNS: Record<string, string[]> = {
   stripe: ['stripe'],
 };
 
+// Whole words only: a plain substring test found "sap" inside words like
+// "asap" and "notion" inside "promotion", and the audit then built an
+// opportunity on SAP (Piece of Cake, 2026-11-08).
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+const WORD_PATTERNS = Object.entries(TECH_PATTERNS).map(
+  ([tech, patterns]) =>
+    [tech, patterns.map((p) => new RegExp(`(?<![a-z0-9])${escapeRe(p).replace(/ /g, '[\\s-]+')}(?![a-z0-9])`))] as const,
+);
+
 export function detectTechFromContent(content: string): string[] {
   const lower = content.toLowerCase();
   const detected: string[] = [];
-  for (const [tech, patterns] of Object.entries(TECH_PATTERNS)) {
-    if (patterns.some((p) => lower.includes(p))) {
+  for (const [tech, patterns] of WORD_PATTERNS) {
+    if (patterns.some((p) => p.test(lower))) {
       detected.push(tech);
     }
   }

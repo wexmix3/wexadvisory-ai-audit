@@ -286,7 +286,9 @@ interface Props {
 
 function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][number]; idx: number }) {
   const cs = confStyle(opp.confidenceLevel);
-  const laborCost = opp.hoursPerMonth * opp.fullyLoadedHourlyRate * opp.fteCountAffected * 12;
+  // hoursPerMonth is the whole task across everyone, so people are not a multiplier.
+  const laborCost = opp.hoursPerMonth * opp.fullyLoadedHourlyRate * 12;
+  const people = Number(opp.fteCountAffected) || 0;
   return (
     <View style={s.oppCard} wrap={false}>
       <View style={s.oppHeader}>
@@ -313,7 +315,7 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
       <View style={s.oppBody}>
         <View style={s.oppCols}>
           <View style={s.oppCol}>
-            <Text style={s.oppColLbl}>CURRENT MANUAL PROCESS</Text>
+            <Text style={s.oppColLbl}>HOW THIS USUALLY RUNS</Text>
             <Text style={s.oppColTxt}>{opp.workflowDescription}</Text>
           </View>
           <View style={{ width: 1, backgroundColor: LGRAY }} />
@@ -326,7 +328,7 @@ function OpportunityCard({ opp, idx }: { opp: AuditReportData['opportunities'][n
         <View style={s.mathBox}>
           <Text style={s.mathLbl}>SAVINGS CALCULATION</Text>
           <Text style={s.mathFormula}>
-            {opp.hoursPerMonth} hrs/mo  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.fteCountAffected} FTE{opp.fteCountAffected !== 1 ? 's' : ''}  x  {opp.automationCeilingPct}% automation  x  12 months
+            {opp.hoursPerMonth} hrs/mo{people > 1 ? ` (shared by ${people} people)` : ''}  x  ${opp.fullyLoadedHourlyRate}/hr  x  {opp.automationCeilingPct}% automation  x  12 months
           </Text>
           <Text style={s.mathResult}>
             {typeof opp.annualSavingsConservative === 'number'
@@ -634,9 +636,10 @@ function SnapshotPDF({ companyName, companyUrl, report, generatedDate }: Props) 
           <Text style={s.infoLbl}>METHODOLOGY</Text>
           <Text style={s.infoTxt}>
             This analysis was produced by scraping {companyUrl}, reviewing job postings and public signals,
-            detecting your technology stack, and benchmarking against industry peers. Savings estimates use
-            the formula: hours/month x fully-loaded hourly rate x affected FTEs x automation ceiling % x 12
-            months. Confidence factors (High/Medium) are applied to reflect signal quality.
+            noting the tools visible publicly, and benchmarking against industry peers. Public data cannot
+            show your internal systems, so each workflow describes how it usually runs at companies like yours.
+            Savings estimates use the formula: total team hours/month x fully-loaded hourly rate x automation
+            ceiling % x 12 months. Confidence factors (High/Medium) are applied to reflect signal quality.
           </Text>
         </View>
 
