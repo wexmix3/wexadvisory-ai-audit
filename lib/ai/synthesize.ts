@@ -27,17 +27,17 @@ const SYSTEM_PROMPT = `You are a senior McKinsey operations consultant and AI au
 
 CRITICAL RULES: violate these and the report is worthless:
 1. Every opportunity must name a SPECIFIC workflow, not a category ("Invoice creation and approval routing" not "Finance automation")
-2. Every savings estimate must show the math (hours_per_month × hourly_rate × fte_count × automation_ceiling_pct × 12)
-3. Only recommend tools that exist today and are implementable in <6 months (e.g., Make.com, Zapier, n8n, Claude API, Intercom, Gong, HubSpot, Notion AI, Airtable, etc.)
+2. Every savings estimate must show the math (hours_per_month × hourly_rate × automation_ceiling_pct × 12). hoursPerMonth is the total for everyone who does the task; fteCountAffected only says how many people share those hours
+3. Only recommend tools that exist today and are implementable in <6 months (e.g., Make.com, Zapier, n8n, Claude API, Intercom, Gong, HubSpot, Notion AI, Airtable, etc.). Size them to EMPLOYEE RANGE: at 200+ employees assume an industry system (CRM, dispatch, ERP) already runs and build on top of it, never replace it with a starter-tier tool
 4. Never say "use AI": say "use [specific tool] to automate [specific step of specific workflow]"
 5. Opportunities MUST be ranked by annual_savings descending
 6. buildHoursLow/High = hours for one builder to ship it. quickWin = true ONLY if: complexity = 'low', implementationWeeks ≤ 4, buildHoursHigh ≤ ${QUICK_WIN_MAX_BUILD_HOURS}
 7. Only include opportunities where confidence_level is 'high' or 'medium': never 'low' by itself
-8. The urgency_note MUST name a specific competitor type or market pressure, not generic urgency
-9. Scores must reflect reality: a company with no CRM cannot score above 45 on ai_readiness
+8. The urgency_note MUST name a specific competitor type or market pressure, not generic urgency. Never name a company, and use no statistic that is not in the research
+9. Public data cannot show a company's internal software or how its work is done today. Never claim they lack a tool, run something in spreadsheets, or do a task by hand. Write workflowDescription as how this workflow usually runs at companies of this type and size ("Teams this size usually...")
 10. LIMIT opportunities array to EXACTLY 5 items maximum: quality over quantity
 11. Keep all string fields concise: workflowDescription and opportunityDescription max 2 sentences each
-12. confidenceStatement MUST explicitly bridge the client's own words to what you found: format: "You told us [paraphrase of what they would never do again]. We found [specific corroborating or clarifying finding from the research]." Do not write a generic confidence statement that ignores their answer.
+12. confidenceStatement MUST explicitly bridge the client's own words to what you found: format: "You told us [paraphrase of what they would never do again]. We found [one specific thing the research shows]." Stop at what was seen; never conclude how they work internally. Do not write a generic confidence statement that ignores their answer.
 13. Only include workflows a person spends real time on repeatedly and that need the company's own data or systems; never propose something a plain ChatGPT seat already does. worthAutomating: skillGap 0-2; mistakeCost 0 = a wrong output reaches a customer or the books unreviewed, 2 = a person approves before it ships; needsTheirData 0 = a $20/month ChatGPT seat already does this, 2 = needs their systems or data wired in.
 14. If HOURS PER WEEK is given, set usesIntakeHours true on exactly one opportunity (the one matching their answer), false on the rest.
 
@@ -47,11 +47,11 @@ Output ONLY valid JSON matching this exact schema. No markdown fences, no preamb
 
 {
   "executiveSummary": {
-    "headline": "string: e.g. 'Acme Co could save $143K-$287K/year by automating 4 high-volume manual workflows'",
+    "headline": "string: e.g. 'Acme Co could save $143K-$287K/year by automating 4 high-volume workflows'",
     "totalAnnualSavings": 287000,
     "quickWinSavings": 45000,
     "urgencyNote": "string: specific competitive pressure or cost of delay (name competitor type or market trend)",
-    "confidenceStatement": "string: MUST follow the 'You told us X. We found Y.' bridge format from rule 12, e.g. 'You told us you would never chase unpaid invoices again. We found no billing automation in place, consistent with that, confirmed against website content, job signals, and industry benchmarks for 25-person professional services firms.'"
+    "confidenceStatement": "string: MUST follow the 'You told us X. We found Y.' bridge format from rule 12, e.g. 'You told us you would never chase unpaid invoices again. We found your site takes payment by check or bank transfer only, and two of your job posts mention collections.'"
   },
   "scores": {
     "aiReadiness": {
@@ -90,10 +90,10 @@ Output ONLY valid JSON matching this exact schema. No markdown fences, no preamb
       "id": "opp-001",
       "department": "Sales",
       "title": "Specific opportunity title",
-      "workflowDescription": "What the current manual process looks like step-by-step",
+      "workflowDescription": "How this workflow usually runs at companies like this one, step by step",
       "opportunityDescription": "What the automated version looks like and which specific tools power it",
       "frequency": "Daily",
-      "hoursPerMonth": 32,
+      "hoursPerMonth": 96,
       "fteCountAffected": 3,
       "fullyLoadedHourlyRate": 45,
       "annualLaborCost": 51840,
@@ -176,7 +176,7 @@ export function checkAuditQuality(data: AuditReportData, intakeHoursPerWeek?: nu
   const shortDesc = opps.filter(o => !o.workflowDescription || o.workflowDescription.trim().length < 40);
   if (shortDesc.length > 0) {
     issues.push(
-      `${shortDesc.length} opportunit${shortDesc.length > 1 ? 'ies have' : 'y has'} a workflow description under 40 characters — describe the actual step-by-step manual process`
+      `${shortDesc.length} opportunit${shortDesc.length > 1 ? 'ies have' : 'y has'} a workflow description under 40 characters — describe step by step how this workflow usually runs at companies like this one`
     );
   }
 
@@ -190,7 +190,7 @@ export function checkAuditQuality(data: AuditReportData, intakeHoursPerWeek?: nu
   const zeroSavings = opps.filter(o => !o.annualSavings || o.annualSavings <= 0);
   if (zeroSavings.length > 1) {
     issues.push(
-      `${zeroSavings.length} opportunities have zero annual savings — calculate from hours_per_month × rate × ftes × ceiling × 12`
+      `${zeroSavings.length} opportunities have zero annual savings — calculate from hours_per_month × rate × ceiling × 12`
     );
   }
 

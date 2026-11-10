@@ -100,15 +100,17 @@ function verifyOne(opp: OpportunityItem, opts: OpportunityMathOptions, applyInta
     }
   }
 
+  // hoursPerMonth is the whole task across everyone who does it, so
+  // fteCountAffected is descriptive only. Multiplying by it counted the same
+  // hours once per person (2026-11-08: a 4-person task showed 4x its savings).
   const hours = num(out.hoursPerMonth);
   const rate = num(out.fullyLoadedHourlyRate);
-  const ftes = num(out.fteCountAffected) || 1;
   const ceiling = num(out.automationCeilingPct);
 
   // Best case. Same rule as before 2026-10-18: keep the model's figure when it
   // is within 20% of the math, otherwise (or when their hours were applied)
   // override with the math.
-  const annualLaborCost = hours * rate * ftes * 12;
+  const annualLaborCost = hours * rate * 12;
   const computedSavings = Math.round(annualLaborCost * (ceiling / 100));
   const claimedSavings = num(out.annualSavings);
   const deviation = claimedSavings > 0 ? Math.abs(claimedSavings - computedSavings) / claimedSavings : 1;
@@ -349,7 +351,7 @@ export function opportunityMathNotes(data: AuditReportData): string[] {
     // Their own hours replaced the model's on this one, and runs were derived from them.
     if (!o.worthAutomating || o.usesIntakeHours === true) return false;
     const implied = (num(o.worthAutomating.minutesPerRun) * num(o.worthAutomating.runsPerMonth)) / 60;
-    const stated = num(o.hoursPerMonth) * (num(o.fteCountAffected) || 1);
+    const stated = num(o.hoursPerMonth);
     if (implied <= 0 && stated <= 0) return false;
     if (implied <= 0 || stated <= 0) return true;
     const ratio = implied > stated ? implied / stated : stated / implied;
@@ -357,7 +359,7 @@ export function opportunityMathNotes(data: AuditReportData): string[] {
   });
   if (inconsistent.length > 0) {
     issues.push(
-      `inconsistent numbers: minutesPerRun x runsPerMonth / 60 is more than ${HOURS_CONSISTENCY_FACTOR}x off from hoursPerMonth x fteCountAffected for ${inconsistent.map((o) => `"${o.title}"`).join(', ')}`,
+      `inconsistent numbers: minutesPerRun x runsPerMonth / 60 is more than ${HOURS_CONSISTENCY_FACTOR}x off from hoursPerMonth for ${inconsistent.map((o) => `"${o.title}"`).join(', ')}`,
     );
   }
 

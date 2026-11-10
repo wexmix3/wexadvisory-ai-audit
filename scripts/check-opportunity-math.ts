@@ -15,6 +15,7 @@ import {
   verifyOpportunityMath,
 } from '../lib/ai/opportunity-math.ts';
 import { stripEmDashes, stripEmDashesDeep } from '../lib/ai/plain-text.ts';
+import { detectTechFromContent } from '../lib/research/tech-detector.ts';
 import type { AuditReportData, OpportunityItem, ProposalContent, WorthAutomating } from '../types/audit';
 
 const RATE = 200;
@@ -35,7 +36,7 @@ function opp(over: Partial<OpportunityItem> = {}): OpportunityItem {
     workflowDescription: 'Rep copies each lead into a template and sends it by hand after every call.',
     opportunityDescription: 'HubSpot sequence sends it.',
     frequency: 'Daily',
-    hoursPerMonth: 32,
+    hoursPerMonth: 96, // whole team: 480 runs x 12 min
     fteCountAffected: 3,
     fullyLoadedHourlyRate: 45,
     annualLaborCost: 51840,
@@ -99,6 +100,24 @@ check('range math: conservative = half of best, totals and headline range', () =
   });
 });
 
+check('people sharing a task never multiply its hours (Piece of Cake audit, 2026-11-08)', () => {
+  // Real stored opportunity: 480 runs x 15 min = 120 h for the whole team of 4.
+  // The old formula multiplied by 4 and reported $161,280.
+  const real = opp({ hoursPerMonth: 120, fteCountAffected: 4, fullyLoadedHourlyRate: 35, automationCeilingPct: 80, annualSavings: 161280, annualLaborCost: 201600, worthAutomating: { minutesPerRun: 15, runsPerMonth: 480, skillGap: 1, mistakeCost: 2, needsTheirData: 2 }, buildHoursLow: 10, buildHoursHigh: 20 });
+  const r = verifyOpportunityMath(report([real]), { buildRateUsd: RATE });
+  assert.equal(r.opportunities[0].annualSavings, 40320); // 120 x 35 x 12 x 0.8
+  assert.equal(r.opportunities[0].annualLaborCost, 50400);
+  assert.equal(r.opportunities[0].annualSavingsConservative, 20160);
+  const solo = verifyOpportunityMath(report([{ ...real, fteCountAffected: 1 }]), { buildRateUsd: RATE });
+  assert.equal(solo.opportunities[0].annualSavings, r.opportunities[0].annualSavings);
+  assert.deepEqual(opportunityMathNotes(r), []); // runs x minutes matches the stated total
+});
+
+check('tools are matched as whole words (Piece of Cake site said "asap", not SAP)', () => {
+  assert.deepEqual(detectTechFromContent('Book your move ASAP. Big promotion this week, wear slacks.'), []);
+  assert.deepEqual(detectTechFromContent('We run SAP S/4HANA, Notion and slack.com'), ['notion', 'slack', 'sap']);
+});
+
 check('headline: existing range is replaced whole, not appended to', () => {
   const base = report([opp()]);
   base.executiveSummary.headline = 'Could save $100K-$200K/year';
@@ -134,7 +153,7 @@ check('intake hours applied to the flagged opportunity only, labeled from you', 
   assert.equal(flagged.inputSources?.hours, 'from you');
   assert.equal(flagged.inputSources?.rate, 'industry benchmark estimate');
   assert.equal(other.inputSources?.hours, 'industry benchmark estimate');
-  assert.equal(other.hoursPerMonth, 32);
+  assert.equal(other.hoursPerMonth, 96);
   // Their hours replace the model's; runs are derived from them so the PDF line and score agree,
   // and the hours-consistency note never fires on the flagged opportunity.
   const withWorth = verifyOpportunityMath(
@@ -155,7 +174,7 @@ check('intake hours: none flagged -> gate issue; invalid hours ignored', () => {
   assert.equal(issues.filter((i) => i.includes('6 hours/week')).length, 1);
   assert.equal(opportunityMathIssues(r, undefined).filter((i) => i.includes('hours/week')).length, 0);
   const bad = verifyOpportunityMath(report([opp({ usesIntakeHours: true })]), { buildRateUsd: RATE, intakeHoursPerWeek: 500 });
-  assert.equal(bad.opportunities[0].hoursPerMonth, 32);
+  assert.equal(bad.opportunities[0].hoursPerMonth, 96);
   assert.equal(bad.opportunities[0].inputSources?.hours, 'industry benchmark estimate');
 });
 
@@ -178,7 +197,7 @@ check('worth-automating score thresholds', () => {
 
 check('gate: unworthy and missing facts retry; inconsistent hours and missing build hours are notes only', () => {
   const unworthy = opp({ title: 'Draft a LinkedIn post', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 }, buildHoursLow: 1, buildHoursHigh: 2 });
-  // 32 h x 3 FTE = 96 h stated; 2 min x 30 runs = 1 h implied -> 96x off
+  // 96 h stated; 2 min x 30 runs = 1 h implied -> 96x off
   const inconsistent = opp({ id: 'o2', title: 'Inconsistent one', worthAutomating: { ...GOOD_WORTH, minutesPerRun: 2, runsPerMonth: 30 }, buildHoursLow: 1, buildHoursHigh: 2 });
   const consistent = opp({ id: 'o3', title: 'Fine', worthAutomating: GOOD_WORTH, buildHoursLow: 1, buildHoursHigh: 2 });
   const missing = opp({ id: 'o4', title: 'No facts' });
@@ -196,7 +215,7 @@ check('gate: unworthy and missing facts retry; inconsistent hours and missing bu
 });
 
 check('drop unworthy only when 3+ remain', () => {
-  const good = (id: string, s: number) => opp({ id, title: id, worthAutomating: GOOD_WORTH, annualSavings: s, hoursPerMonth: s / (45 * 3 * 12 * 0.75) });
+  const good = (id: string, s: number) => opp({ id, title: id, worthAutomating: GOOD_WORTH, annualSavings: s, hoursPerMonth: s / (45 * 12 * 0.75) });
   const bad = opp({ id: 'bad', title: 'bad', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 } });
   const four = verifyOpportunityMath(report([good('a', 30000), good('b', 20000), good('c', 10000), bad]), { buildRateUsd: RATE });
   const dropped = dropUnworthyOpportunities(four);
@@ -215,7 +234,7 @@ check('drop unworthy only when 3+ remain', () => {
   );
   assert.deepEqual(withMine.dropped, []);
   // Dropping prunes roadmap items naming it, re-sums the phase, and restates a top opportunity that named it.
-  const big = opp({ id: 'big', title: 'Big but generic', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 }, annualSavings: 90000, hoursPerMonth: 90000 / (45 * 3 * 12 * 0.75) });
+  const big = opp({ id: 'big', title: 'Big but generic', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 }, annualSavings: 90000, hoursPerMonth: 90000 / (45 * 12 * 0.75) });
   const withRoad = verifyOpportunityMath(report([good('a', 30000), good('b', 20000), good('c', 10000), big], {
     implementationRoadmap: {
       phase1: phase([
@@ -295,7 +314,7 @@ check('old-shape report passes through without throwing and keeps its numbers', 
   const old = {
     ...report([
       opp({ implementationCostLow: 1500, implementationCostHigh: 4000, roiMonths: 1 }),
-      opp({ id: 'opp-002', title: 'Two', hoursPerMonth: 10, fteCountAffected: 2, annualSavings: 8100, complexity: 'medium', quickWin: false, implementationCostLow: 6000, implementationCostHigh: 9000, roiMonths: 7 }),
+      opp({ id: 'opp-002', title: 'Two', hoursPerMonth: 20, fteCountAffected: 2, annualSavings: 8100, complexity: 'medium', quickWin: false, implementationCostLow: 6000, implementationCostHigh: 9000, roiMonths: 7 }),
     ], {
       implementationRoadmap: {
         phase1: phase([{ title: 'a', description: 'a', weeks: 2, estimatedCost: 2000, estimatedSavings: 18000 }], 5000),
