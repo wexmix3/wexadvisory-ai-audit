@@ -119,6 +119,8 @@ export interface RoadmapItem {
   estimatedSavings: number;
   /** Added 2026-10-18. When present, estimatedCost = buildHours x BUILD_RATE_USD (computed in code). */
   buildHours?: number;
+  /** Added 2026-11-09. The opportunity this item delivers, or null for supporting work; estimatedSavings is copied from it in code. */
+  opportunityId?: string | null;
 }
 
 export interface ImplementationPhase {

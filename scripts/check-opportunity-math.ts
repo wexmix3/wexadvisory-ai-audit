@@ -14,7 +14,7 @@ import {
   opportunityMathNotes,
   verifyOpportunityMath,
 } from '../lib/ai/opportunity-math.ts';
-import { stripEmDashes, stripEmDashesDeep } from '../lib/ai/plain-text.ts';
+import { pdfSafeGlyphs, stripEmDashes, stripEmDashesDeep } from '../lib/ai/plain-text.ts';
 import { detectTechFromContent } from '../lib/research/tech-detector.ts';
 import type { AuditReportData, OpportunityItem, ProposalContent, WorthAutomating } from '../types/audit';
 
@@ -116,6 +116,53 @@ check('people sharing a task never multiply its hours (Piece of Cake audit, 2026
 check('tools are matched as whole words (Piece of Cake site said "asap", not SAP)', () => {
   assert.deepEqual(detectTechFromContent('Book your move ASAP. Big promotion this week, wear slacks.'), []);
   assert.deepEqual(detectTechFromContent('We run SAP S/4HANA, Notion and slack.com'), ['notion', 'slack', 'sap']);
+});
+
+check('roadmap savings come from opportunities, never the model (live Piece of Cake audit, 2026-11-09)', () => {
+  // Live audit 1709cf1c: Scale phase items carried no savings, so the model's
+  // phase total of $487,000 printed under a $194K report total.
+  const o = (id: string, title: string, s: number) => opp({ id, title, annualSavings: s, hoursPerMonth: s / (45 * 12 * 0.75) });
+  const opps = [o('opp-001', 'Quote follow-up', 70560), o('opp-002', 'Crew scheduling', 36960), o('opp-003', 'Review response drafting', 34944)];
+  const item = (title: string, opportunityId: string | null, estimatedSavings = 999999) => ({ title, description: 'x', weeks: 2, buildHours: 10, estimatedCost: 1, estimatedSavings, opportunityId });
+  const r = verifyOpportunityMath(report(opps, {
+    implementationRoadmap: {
+      phase1: { ...phase([item('Deploy automated quote follow-up sequence (HubSpot + Twilio)', 'opp-001'), item('Review response drafting', null)], 1), totalSavings: 132384 },
+      phase2: { ...phase([item('Build crew scheduling', 'opp-002'), item('Quote follow-up again', 'opp-001')], 1), totalSavings: 61152 },
+      phase3: { ...phase([item('Expand HubSpot CRM', null), { ...item('Lead scoring', null), estimatedSavings: undefined as unknown as number }], 1), totalSavings: 487000 },
+    },
+  }), { buildRateUsd: RATE });
+  const rm = r.implementationRoadmap;
+  // By id even when the title differs; by title when the id is null; each opportunity once.
+  assert.deepEqual(rm.phase1.items.map((i) => i.estimatedSavings), [70560, 34944]);
+  assert.deepEqual(rm.phase2.items.map((i) => i.estimatedSavings), [36960, 0]);
+  assert.deepEqual(rm.phase3.items.map((i) => i.estimatedSavings), [0, 0]);
+  assert.equal(rm.phase3.totalSavings, 0);
+  const phases = rm.phase1.totalSavings + rm.phase2.totalSavings + rm.phase3.totalSavings;
+  assert.equal(phases, r.executiveSummary.totalAnnualSavings);
+  assert.equal(rm.phase1.totalInvestment, 4000); // investment still from build hours
+  assert.deepEqual(opportunityMathNotes(r).filter((n) => n.includes('roadmap')), []);
+  // A roadmap naming no opportunity is noted (log-only), never a retry.
+  const none = verifyOpportunityMath(report(opps, { implementationRoadmap: { phase1: phase([item('Something unrelated', null)], 1), phase2: phase([], 1), phase3: phase([], 1) } }), { buildRateUsd: RATE });
+  assert.ok(opportunityMathNotes(none).some((n) => n.includes('no roadmap item maps')));
+  assert.ok(!opportunityMathIssues(none).some((n) => n.includes('roadmap')));
+});
+
+check('dropping an opportunity removes its roadmap item by id even when titles differ', () => {
+  const good = (id: string, s: number) => opp({ id, title: id, worthAutomating: GOOD_WORTH, annualSavings: s, hoursPerMonth: s / (45 * 12 * 0.75) });
+  const bad = opp({ id: 'bad', title: 'Generic thing', worthAutomating: { ...GOOD_WORTH, needsTheirData: 0 } });
+  const it = (title: string, opportunityId: string) => ({ title, description: 'x', weeks: 1, buildHours: 5, estimatedCost: 1, estimatedSavings: 0, opportunityId });
+  const v = verifyOpportunityMath(report([good('a', 30000), good('b', 20000), good('c', 10000), bad], {
+    implementationRoadmap: { phase1: phase([it('Roll out the generic thing', 'bad'), it('Ship A', 'a')], 1), phase2: phase([], 1), phase3: phase([], 1) },
+  }), { buildRateUsd: RATE });
+  const d = dropUnworthyOpportunities(v);
+  assert.deepEqual(d.data.implementationRoadmap.phase1.items.map((i) => i.title), ['Ship A']);
+  assert.equal(d.data.implementationRoadmap.phase1.totalSavings, 30000);
+});
+
+check('characters the PDF font cannot draw become ASCII (live: "booking → crew assignment")', () => {
+  assert.equal(pdfSafeGlyphs('orchestrate booking confirmation → crew assignment → customer notification'), 'orchestrate booking confirmation -> crew assignment -> customer notification');
+  assert.equal(pdfSafeGlyphs('≤ 4 weeks, ≥ 3 quotes, back ← here'), '<= 4 weeks, >= 3 quotes, back <- here');
+  assert.deepEqual(stripEmDashesDeep({ a: ['x → y — z'] }), { a: ['x -> y, z'] });
 });
 
 check('headline: existing range is replaced whole, not appended to', () => {

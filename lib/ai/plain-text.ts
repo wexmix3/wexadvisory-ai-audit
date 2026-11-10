@@ -10,9 +10,23 @@ export function stripEmDashes(text: string): string {
   return text.replace(/\s*—\s*/g, ', ');
 }
 
-/** Returns a copy of a parsed JSON value with every string passed through stripEmDashes. */
+// The PDFs use built-in Helvetica, which has no glyph for these, so an arrow
+// printed as a stray quote ("booking ' crew assignment", 2026-11-09).
+const NO_GLYPH: [RegExp, string][] = [
+  [/\s*[→⇒➔➜⟶]\s*/g, ' -> '],
+  [/\s*[←⇐⟵]\s*/g, ' <- '],
+  [/≤/g, '<='],
+  [/≥/g, '>='],
+];
+
+/** Swaps characters the PDF font cannot draw for plain ASCII. */
+export function pdfSafeGlyphs(text: string): string {
+  return NO_GLYPH.reduce((t, [re, to]) => t.replace(re, to), text);
+}
+
+/** Returns a copy of a parsed JSON value with every string passed through stripEmDashes and pdfSafeGlyphs. */
 export function stripEmDashesDeep<T>(value: T): T {
-  if (typeof value === 'string') return stripEmDashes(value) as T;
+  if (typeof value === 'string') return pdfSafeGlyphs(stripEmDashes(value)) as T;
   if (Array.isArray(value)) return value.map((v) => stripEmDashesDeep(v)) as T;
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

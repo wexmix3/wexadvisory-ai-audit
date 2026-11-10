@@ -430,7 +430,10 @@ function Roadmap({ implementationRoadmap }: { implementationRoadmap: AuditReport
             </View>
             <View style={s.phaseTotRow}>
               <Text style={s.phaseTotLbl}>Annual Savings</Text>
-              <Text style={[s.phaseTotVal, { color: GREEN }]}>{fmt(phase.totalSavings)}</Text>
+              {/* Savings are copied from opportunities in code; a phase of supporting work claims none. */}
+              <Text style={[s.phaseTotVal, { color: GREEN }]}>
+                {Number(phase.totalSavings) > 0 ? fmt(phase.totalSavings) : 'Supporting work'}
+              </Text>
             </View>
           </View>
         </View>

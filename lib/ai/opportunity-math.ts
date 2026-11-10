@@ -12,6 +12,7 @@ import type {
   InputSources,
   OpportunityItem,
   ProposalContent,
+  RoadmapItem,
   WorthAutomating,
 } from '../../types/audit';
 
@@ -181,6 +182,58 @@ function withPhaseTotals(phase: ImplementationPhase): ImplementationPhase {
   return { ...phase, totalInvestment, totalSavings };
 }
 
+const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase();
+
+// Exact match, or a substring match only when the shorter title is specific
+// enough (8+ chars and at least half the longer one), so a generic title like
+// "CRM" never matches unrelated items.
+function sameItem(a: string, b: string): boolean {
+  if (a === '' || b === '') return false;
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 8 && short.length * 2 >= long.length && long.includes(short);
+}
+
+/** The opportunity a roadmap item delivers: its opportunityId, else a matching title. */
+function opportunityFor(item: RoadmapItem, opps: OpportunityItem[]): OpportunityItem | undefined {
+  if (item.opportunityId) {
+    const byId = opps.find((o) => o.id === item.opportunityId);
+    if (byId) return byId;
+  }
+  return opps.find((o) => sameItem(norm(o.title), norm(item.title)));
+}
+
+/**
+ * Roadmap savings come from the opportunities, never from the model. Each item
+ * takes the savings of the opportunity it delivers, each opportunity counts
+ * once across all phases, and supporting work claims none, so the phases can
+ * never add up to more than the report total. The model's own figures let a
+ * Scale phase of supporting work show $487K under a $194K total (2026-11-09).
+ * Investment totals are left to verifyPhase.
+ */
+function withRoadmapSavings(
+  roadmap: AuditReportData['implementationRoadmap'],
+  opps: OpportunityItem[],
+): AuditReportData['implementationRoadmap'] {
+  const counted = new Set<string>();
+  const fix = (phase: ImplementationPhase | undefined) => {
+    if (!phase) return phase;
+    const items = (Array.isArray(phase.items) ? phase.items : []).map((it) => {
+      const opp = opportunityFor(it, opps);
+      if (!opp || counted.has(opp.id)) return { ...it, estimatedSavings: 0 };
+      counted.add(opp.id);
+      return { ...it, estimatedSavings: num(opp.annualSavings) };
+    });
+    return { ...phase, items, totalSavings: items.reduce((sum, it) => sum + it.estimatedSavings, 0) };
+  };
+  return {
+    ...roadmap,
+    phase1: fix(roadmap.phase1) as ImplementationPhase,
+    phase2: fix(roadmap.phase2) as ImplementationPhase,
+    phase3: fix(roadmap.phase3) as ImplementationPhase,
+  };
+}
+
 // ── Totals + headline ─────────────────────────────────────────────────────────
 
 const MONEY = /\$[\d,]+(?:\.\d+)?[KkMm]?(?:\s*(?:-|–|—|to)\s*\$[\d,]+(?:\.\d+)?[KkMm]?)?/;
@@ -242,12 +295,15 @@ export function verifyOpportunityMath(data: AuditReportData, opts: OpportunityMa
   const withRoadmap: AuditReportData = roadmap
     ? {
         ...data,
-        implementationRoadmap: {
-          ...roadmap,
-          phase1: verifyPhase(roadmap.phase1, opts.buildRateUsd) as ImplementationPhase,
-          phase2: verifyPhase(roadmap.phase2, opts.buildRateUsd) as ImplementationPhase,
-          phase3: verifyPhase(roadmap.phase3, opts.buildRateUsd) as ImplementationPhase,
-        },
+        implementationRoadmap: withRoadmapSavings(
+          {
+            ...roadmap,
+            phase1: verifyPhase(roadmap.phase1, opts.buildRateUsd) as ImplementationPhase,
+            phase2: verifyPhase(roadmap.phase2, opts.buildRateUsd) as ImplementationPhase,
+            phase3: verifyPhase(roadmap.phase3, opts.buildRateUsd) as ImplementationPhase,
+          },
+          verified,
+        ),
       }
     : data;
 
@@ -268,23 +324,16 @@ export function dropUnworthyOpportunities(data: AuditReportData): { data: AuditR
   if (keep.length === opps.length || keep.length < 3) return { data, dropped: [] };
   const dropped = opps.filter(droppable).map((o) => o.title);
 
-  // Roadmap items are matched to opportunities by title only; remove the ones
-  // naming a dropped opportunity and re-sum their phase.
-  const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase();
-  const droppedTitles = dropped.map(norm).filter(Boolean);
-  // Exact match, or a substring match only when the shorter title is specific
-  // enough (8+ chars and at least half the longer one), so a generic title like
-  // "CRM" never removes unrelated items.
-  const sameItem = (a: string, b: string) => {
-    if (a === '' || b === '') return false;
-    if (a === b) return true;
-    const [short, long] = a.length <= b.length ? [a, b] : [b, a];
-    return short.length >= 8 && short.length * 2 >= long.length && long.includes(short);
+  // Remove roadmap items delivering a dropped opportunity (by opportunityId,
+  // else by title) and re-sum their phase.
+  const droppedOpps = new Set(opps.filter(droppable));
+  const mentionsDropped = (it: RoadmapItem) => {
+    const target = opportunityFor(it, opps);
+    return target !== undefined && droppedOpps.has(target);
   };
-  const mentionsDropped = (title: string | undefined) => droppedTitles.some((d) => sameItem(norm(title), d));
   const prunePhase = (phase: ImplementationPhase | undefined) => {
     if (!phase || !Array.isArray(phase.items)) return phase;
-    const items = phase.items.filter((it) => !mentionsDropped(it.title));
+    const items = phase.items.filter((it) => !mentionsDropped(it));
     return items.length === phase.items.length ? phase : withPhaseTotals({ ...phase, items });
   };
   const roadmap = data.implementationRoadmap;
@@ -368,6 +417,14 @@ export function opportunityMathNotes(data: AuditReportData): string[] {
   );
   if (missingBuild.length > 0) {
     issues.push(`${missingBuild.length} opportunit${missingBuild.length > 1 ? 'ies are' : 'y is'} missing buildHoursLow/buildHoursHigh`);
+  }
+
+  // Roadmap savings come only from matched opportunities, so a roadmap that
+  // names none shows every phase as supporting work.
+  const rm = data.implementationRoadmap;
+  const items = rm ? [rm.phase1, rm.phase2, rm.phase3].flatMap((p) => p?.items ?? []) : [];
+  if (items.length > 0 && opps.length > 0 && !items.some((it) => opportunityFor(it, opps))) {
+    issues.push('no roadmap item maps to an opportunity (opportunityId missing), so the roadmap shows no savings');
   }
 
   return issues.map((i) => `note: ${i}`);

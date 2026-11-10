@@ -45,3 +45,10 @@ Three live replays of 834467df (`npx tsx scripts/replay-audit.mts <id> <outDir>`
 ## Remaining / risks
 - Audits already sent kept the inflated numbers; not re-sent.
 - Not deployed until Max approves (Vercel auto-deploys master).
+
+## Follow-up 2026-11-09: roadmap savings + arrow glyph (branch fix/roadmap-savings-arrow)
+- Root cause: roadmap item savings were model-written; withPhaseTotals fell back to the model's phase total when items had none. Live audit 1709cf1c: Scale phase $487,000 under a $194K report total; prompt example showed empty phases with $120K/$220K savings.
+- Fix: roadmap items carry opportunityId (prompt rule 15, example updated, model savings fields removed from example). Code copies savings from the matched opportunity (id, else title), each opportunity once, supporting work 0; phases can never exceed the total. PDF shows "Supporting work" for a 0 phase. Dropping an opportunity prunes its roadmap item by id. Log-only note when no item maps to an opportunity.
+- Arrow: built-in Helvetica has no "→", printed as a stray quote. pdfSafeGlyphs swaps arrows and <=/>= for ASCII in every model string.
+- Verified: 19 checks (3 new, fixtures from the live audit), tsc + lint clean.
+- NOT verified live: replay blocked, Anthropic credit balance too low (400 "credit balance is too low", 2026-11-09). Next: top up, replay 1709cf1c, deploy, one live audit.
