@@ -8,6 +8,7 @@
 
 import type {
   AuditReportData,
+  CostOfDoingNothing,
   ImplementationPhase,
   InputSources,
   OpportunityItem,
@@ -450,9 +451,11 @@ export function attachAuditFigures(content: ProposalContent, reportData: AuditRe
   if (!Array.isArray(content.opportunities)) return;
   const top3 = (reportData.opportunities ?? []).slice(0, 3);
   const norm = (t: string) => (t ?? '').trim().toLowerCase();
+  const used = new Set<OpportunityItem>();
   content.opportunities = content.opportunities.map((frame, i) => {
     const source = top3.find((o) => norm(o.title) === norm(frame.title)) ?? top3[i];
     if (!source) return frame;
+    used.add(source);
     const out = { ...frame, estimatedSavings: num(source.annualSavings) };
     if (typeof source.annualSavingsConservative === 'number') {
       out.estimatedSavingsConservative = source.annualSavingsConservative;
@@ -465,6 +468,22 @@ export function attachAuditFigures(content: ProposalContent, reportData: AuditRe
     }
     return out;
   });
+
+  // The cost of doing nothing, from the same audit opportunities the proposal
+  // details. Each source counts once, even when two frames fell back to it.
+  const sources = [...used];
+  const annualLaborCost = sources.reduce((sum, o) => sum + num(o.annualLaborCost), 0);
+  if (annualLaborCost > 0) {
+    const cost: CostOfDoingNothing = {
+      hoursPerMonth: Math.round(sources.reduce((sum, o) => sum + num(o.hoursPerMonth), 0)),
+      annualLaborCost: Math.round(annualLaborCost),
+      savingsBest: Math.round(sources.reduce((sum, o) => sum + num(o.annualSavings), 0)),
+    };
+    if (sources.every((o) => typeof o.annualSavingsConservative === 'number')) {
+      cost.savingsConservative = Math.round(sources.reduce((sum, o) => sum + num(o.annualSavingsConservative), 0));
+    }
+    content.costOfDoingNothing = cost;
+  }
 }
 
 /** Unrounded dollar figures like "$115,057": the proposal should only quote ranges. */

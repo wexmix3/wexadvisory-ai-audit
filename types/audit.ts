@@ -203,6 +203,16 @@ export interface ProposalOpportunityFrame {
   buildHoursHigh?: number;
 }
 
+export interface CostOfDoingNothing {
+  /** Hours a month the detailed opportunities take today. */
+  hoursPerMonth: number;
+  /** What those hours cost a year at the audit's loaded rates. */
+  annualLaborCost: number;
+  /** Savings left on the table each year: best case, and conservative when every source has one. */
+  savingsBest: number;
+  savingsConservative?: number;
+}
+
 export interface ProposalContent {
   contactFirstName: string;
   companyName: string;
@@ -215,6 +225,11 @@ export interface ProposalContent {
   totalSavingsConservative?: number;
   /** Count of every audit opportunity; the proposal details the top 3 (2026-10-19). */
   totalOpportunities?: number;
+  /**
+   * What leaving the proposed work manual costs, summed in code over the audit
+   * opportunities the proposal details (2026-11-10). Missing on older proposals.
+   */
+  costOfDoingNothing?: CostOfDoingNothing;
   engagementScope: string;
   engagementTimeline: string;
   ongoingSupportDescription: string;
