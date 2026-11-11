@@ -18,7 +18,7 @@ import {
   fixedPriceRange,
   fmtUsd,
 } from '@/lib/proposal/terms';
-import { fmtRange } from '@/lib/ai/opportunity-math';
+import { fmtRange, fmtShort } from '@/lib/ai/opportunity-math';
 
 // All strings must use ASCII only -- Helvetica does not support non-ASCII glyphs.
 // Use -> instead of ->, * instead of bullets, etc.
@@ -105,7 +105,48 @@ const s = StyleSheet.create({
   ctaText: { color: WHITE, fontSize: 11, lineHeight: 1.6, marginBottom: 12 },
   ctaLink: { color: GOLD, fontSize: 10, fontFamily: 'Helvetica-Bold' },
   ctaSig:  { color: MGRAY, fontSize: 9, marginTop: 14, lineHeight: 1.5 },
+
+  // Cost of doing nothing (exec summary page)
+  nothingBottom: { backgroundColor: NAVY, borderRadius: 6, padding: '10 14' },
+  nothingText:   { color: WHITE, fontSize: 10, lineHeight: 1.5 },
+  nothingNum:    { color: GOLD, fontFamily: 'Helvetica-Bold' },
 });
+
+// Every figure here was computed in code from the audit (attachAuditFigures),
+// never written by the model. Older proposals without it render nothing.
+function CostOfDoingNothing({ content }: { content: ProposalContent }) {
+  const c = content.costOfDoingNothing;
+  if (!c) return null;
+  const leftOnTable = fmtRange(c.savingsBest, c.savingsConservative);
+  return (
+    <View style={{ marginTop: 18 }} wrap={false}>
+      <Text style={s.eyebrow}>WHAT STAYING PUT COSTS</Text>
+      <View style={s.engRow}>
+        <View style={s.engBox}>
+          <Text style={s.engLabel}>MANUAL HOURS A MONTH</Text>
+          <Text style={s.engValue}>{c.hoursPerMonth.toLocaleString('en-US')}</Text>
+          <Text style={s.engSub}>today, on the work in this proposal</Text>
+        </View>
+        <View style={s.engBox}>
+          <Text style={s.engLabel}>WHAT THOSE HOURS COST</Text>
+          <Text style={s.engValue}>{fmtShort(c.annualLaborCost)}/yr</Text>
+          <Text style={s.engSub}>at the loaded hourly rates in your audit</Text>
+        </View>
+        <View style={s.engBox}>
+          <Text style={s.engLabel}>LEFT ON THE TABLE</Text>
+          <Text style={s.engValue}>{leftOnTable}/yr</Text>
+          <Text style={s.engSub}>the share automation can take back</Text>
+        </View>
+      </View>
+      <View style={s.nothingBottom}>
+        <Text style={s.nothingText}>
+          Every year this work stays manual costs about <Text style={s.nothingNum}>{fmtShort(c.annualLaborCost)}</Text> in
+          staff time. Automation can take back about <Text style={s.nothingNum}>{leftOnTable}</Text> of that.
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 // "about $2,400 to $4,000 (12 to 20 hours of build), quoted as one fixed price before work starts"
 function fixedPriceLabel(hoursLow: number, hoursHigh: number): string {
@@ -184,6 +225,7 @@ function ExecutiveSummaryPage({ content }: { content: ProposalContent }) {
         <View style={s.summaryBox}>
           <Text style={s.body}>{content.executiveSummary}</Text>
         </View>
+        <CostOfDoingNothing content={content} />
         <Text style={[s.body, { marginTop: 14 }]}>
           This proposal outlines a phased engagement to implement the {content.opportunities.length} highest-impact
           automation opportunities identified in your AI Opportunity Audit. Each opportunity has been

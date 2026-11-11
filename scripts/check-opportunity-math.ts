@@ -433,6 +433,38 @@ check('proposal figures come from the audit: savings range, build hours and tota
   assert.equal(byTitle.opportunities[0].buildHoursLow, 10);
 });
 
+check('cost of doing nothing sums the detailed audit opportunities once each, in code', () => {
+  const report = {
+    opportunities: [
+      opp({ title: 'A', hoursPerMonth: 40, annualLaborCost: 24000, annualSavings: 18000, annualSavingsConservative: 9000 }),
+      opp({ title: 'B', hoursPerMonth: 20, annualLaborCost: 12000, annualSavings: 6000, annualSavingsConservative: 3000 }),
+      opp({ title: 'C', hoursPerMonth: 999, annualLaborCost: 999999, annualSavings: 999999 }),
+    ],
+  } as unknown as AuditReportData;
+  // Two frames: A by title, then position 1 -> B. C is not detailed, so it is not counted.
+  const content = { opportunities: [{ title: 'a' }, { title: 'renamed' }] } as unknown as ProposalContent;
+  attachAuditFigures(content, report);
+  assert.deepEqual(content.costOfDoingNothing, {
+    hoursPerMonth: 60, annualLaborCost: 36000, savingsBest: 24000, savingsConservative: 12000,
+  });
+  assert.equal(fmtRange(content.costOfDoingNothing!.savingsBest, content.costOfDoingNothing!.savingsConservative), '$12K-$24K');
+
+  // Both frames falling back to the same source count it once.
+  const dup = { opportunities: [{ title: 'x' }, { title: 'A' }] } as unknown as ProposalContent;
+  attachAuditFigures(dup, { opportunities: report.opportunities!.slice(0, 1) } as unknown as AuditReportData);
+  assert.equal(dup.costOfDoingNothing!.annualLaborCost, 24000);
+
+  // An older source without a conservative figure: best case only.
+  const old = { opportunities: [{ title: 'A' }] } as unknown as ProposalContent;
+  attachAuditFigures(old, { opportunities: [opp({ title: 'A', annualSavingsConservative: undefined })] } as unknown as AuditReportData);
+  assert.equal(old.costOfDoingNothing!.savingsConservative, undefined);
+
+  // No labor cost: no block at all.
+  const none = { opportunities: [{ title: 'A' }] } as unknown as ProposalContent;
+  attachAuditFigures(none, { opportunities: [opp({ title: 'A', annualLaborCost: 0 })] } as unknown as AuditReportData);
+  assert.equal(none.costOfDoingNothing, undefined);
+});
+
 check('exact dollar figures are flagged, ranges are not', () => {
   assert.deepEqual(exactDollarFigures('identified $115,057 in savings and $35,280 a year'), ['$115,057', '$35,280']);
   assert.deepEqual(exactDollarFigures('identified $58K-$115K a year, $200/hr'), []);

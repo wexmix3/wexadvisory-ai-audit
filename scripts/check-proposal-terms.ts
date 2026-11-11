@@ -54,6 +54,7 @@ function proposal(over: Partial<ProposalContent> = {}): ProposalContent {
     totalSavingsBest: 59000,
     totalSavingsConservative: 29000,
     totalOpportunities: 4,
+    costOfDoingNothing: { hoursPerMonth: 65, annualLaborCost: 46800, savingsBest: 40000, savingsConservative: 20000 },
     engagementScope: '- Build the nightly eligibility check in Make.com\n- Daily exceptions list to the front desk',
     engagementTimeline: 'Phase 1 (Weeks 1-4): eligibility check live. After launch: the monthly plan.',
     ongoingSupportDescription: 'The monthly plan covers keeping the payer connections working and small changes as your schedule rules shift.',
