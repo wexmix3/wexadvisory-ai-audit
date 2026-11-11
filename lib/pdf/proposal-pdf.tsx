@@ -125,7 +125,7 @@ function CostOfDoingNothing({ content }: { content: ProposalContent }) {
         <View style={s.engBox}>
           <Text style={s.engLabel}>MANUAL HOURS A MONTH</Text>
           <Text style={s.engValue}>{c.hoursPerMonth.toLocaleString('en-US')}</Text>
-          <Text style={s.engSub}>today, on the {content.opportunities.length === 1 ? 'task' : `${content.opportunities.length} tasks`} in this proposal</Text>
+          <Text style={s.engSub}>today, on the work in this proposal</Text>
         </View>
         <View style={s.engBox}>
           <Text style={s.engLabel}>WHAT THOSE HOURS COST</Text>
@@ -140,8 +140,8 @@ function CostOfDoingNothing({ content }: { content: ProposalContent }) {
       </View>
       <View style={s.nothingBottom}>
         <Text style={s.nothingText}>
-          Every year this work stays manual costs about <Text style={s.nothingNum}>{leftOnTable}</Text> in
-          staff time your team does not get back.
+          Every year this work stays manual costs about <Text style={s.nothingNum}>{fmtShort(c.annualLaborCost)}</Text> in
+          staff time. Automation can take back about <Text style={s.nothingNum}>{leftOnTable}</Text> of that.
         </Text>
       </View>
     </View>
