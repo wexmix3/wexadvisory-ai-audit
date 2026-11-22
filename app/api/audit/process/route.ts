@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
 async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
   try {
-    const { reportData, gateIssues, droppedOpportunities } = await runAuditPipeline(auditId, intake);
+    const { reportData, gateIssues, droppedOpportunities, websiteWarning } = await runAuditPipeline(auditId, intake);
 
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/results/${auditId}`;
 
@@ -66,6 +66,7 @@ async function runAuditPipelineAsync(auditId: string, intake: SnapshotIntake) {
         source: intake.utmSource || undefined,
         qualityGateIssues: gateIssues,
         droppedOpportunities,
+        websiteWarning,
       }),
     ]);
     // Delivery never blocks the pipeline, but a failed send must show in the logs.
