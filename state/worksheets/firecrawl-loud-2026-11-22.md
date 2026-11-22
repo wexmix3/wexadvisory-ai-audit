@@ -26,4 +26,7 @@ Fresh reviewer found: blocked sites (403/429/503) were still silent because ever
 - A site that 403s only some subpages logs errors for them but raises no warning (home page read fine).
 
 ## Outcome
-(filled after production deploy)
+LIVE 2026-11-22. master 8f53497 (merge of 0134c20), Vercel production deploy ai-audit-mbu04kx6k Ready (created 36s after the merge commit).
+- Real audit 54baff9c (Piece of Cake, utm deploy-check-firecrawl, maxwexley@wexadvisory.com): complete, "$63K-$126K/year". Row: web_content pages "/,/contact" (missing subpages no longer included), eval_quality.scrape_failures []. Both emails arrived; lead subject has no [WEBSITE NOT READ] flag (correct, site read fine).
+- The failure path was proven locally (cf545f97), not on production: forcing it there would mean breaking the production Firecrawl key.
+- Verification cost: 2 audits (~$2 Anthropic) + ~21 Firecrawl credits.
