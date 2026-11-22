@@ -171,6 +171,8 @@ export async function sendAdminNotification(params: {
   /** Final quality-gate issues for the delivered report (eval_quality.gate_issues). */
   qualityGateIssues?: string[];
   droppedOpportunities?: string[];
+  /** Set when Firecrawl could not read the site (see websiteReadWarning). */
+  websiteWarning?: string | null;
 }) {
   const { totalAnnualSavings, aiReadinessScore, resultsUrl, source } = params;
   // Intake fields are user-typed and topOpportunity is model text: escape all
@@ -203,7 +205,7 @@ export async function sendAdminNotification(params: {
   await sendViaBrevo({
     senderName: 'Wex AI Audit',
     toEmail: 'maxwexley@wexadvisory.com',
-    subject: `New Lead: ${subjectSafeCompanyName}, ${savingsText}/yr savings identified${isTrackedSource ? ` (via ${sanitizeForHeader(source ?? '')})` : ''}`,
+    subject: `New Lead: ${subjectSafeCompanyName}, ${savingsText}/yr savings identified${isTrackedSource ? ` (via ${sanitizeForHeader(source ?? '')})` : ''}${params.websiteWarning ? ' [WEBSITE NOT READ]' : ''}`,
     html: `
 <div style="font-family: monospace; max-width: 600px; padding: 20px;">
   <h2 style="color: #0A1628; border-bottom: 2px solid #C8A84B; padding-bottom: 8px;">New AI Audit Lead</h2>
@@ -221,6 +223,7 @@ export async function sendAdminNotification(params: {
   </table>
 
   <p style="color: ${gateIssues.length === 0 ? '#059669' : '#b45309'}; font-size: 13px; margin: 0 0 12px;">${escapeHtml(gateLine)}</p>
+  ${params.websiteWarning ? `<p style="color: #b91c1c; font-size: 13px; font-weight: 700; margin: 0 0 12px;">${escapeHtml(params.websiteWarning)}</p>` : ''}
 
   <div style="margin: 20px 0;">
     <a href="${resultsUrl}" style="background: #0A1628; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-right: 12px;">View report →</a>

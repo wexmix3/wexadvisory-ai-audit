@@ -1,5 +1,5 @@
 import { getSupabase } from '@/lib/supabase';
-import { scrapeMultiplePages, consolidateWebContent } from '@/lib/research/firecrawl';
+import { scrapeMultiplePages, consolidateWebContent, websiteReadWarning } from '@/lib/research/firecrawl';
 import { gatherCompanySignals, formatSearchResults } from '@/lib/research/tavily';
 import { getDomainTraffic } from '@/lib/research/dataforseo';
 import {
@@ -32,7 +32,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
 
     let trafficError: string | null = null;
 
-    const [pages, signals, traffic] = await Promise.all([
+    const [scrape, signals, traffic] = await Promise.all([
       scrapeMultiplePages(intake.companyUrl),
       gatherCompanySignals(intake.companyName, domain),
       getDomainTraffic(intake.companyUrl).catch((err: unknown) => {
@@ -46,6 +46,8 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       }),
     ]);
 
+    const pages = scrape.pages;
+    const websiteWarning = websiteReadWarning(scrape);
     const webContent = consolidateWebContent(pages);
     const jobContent = formatSearchResults(signals.jobs);
     const reviewContent = formatSearchResults(signals.reviews);
@@ -129,6 +131,8 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       quality_retry_used: qualityRetryUsed,
       pre_retry_issues: preRetryIssues,
       dropped_opportunities: droppedOpportunities,
+      // Firecrawl errors (not missing pages); empty array = website read fine.
+      scrape_failures: scrape.failures,
     };
 
     // Override Claude's scores with the deterministic score engine for consistency
@@ -161,7 +165,7 @@ export async function runAuditPipeline(auditId: string, intake: SnapshotIntake) 
       status: 'generating', // still generating PDF
     }).eq('id', auditId);
 
-    return { reportData, classification, benchmark, gateIssues: gateResult.issues, droppedOpportunities };
+    return { reportData, classification, benchmark, gateIssues: gateResult.issues, droppedOpportunities, websiteWarning };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await setStatus(auditId, 'failed', { error_message: msg });
