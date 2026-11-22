@@ -13,16 +13,27 @@ export interface Resolver {
   resolveMx(domain: string): Promise<{ exchange: string }[]>;
 }
 
-// MX goes through public resolvers, not the system default: the system
-// resolver is not guaranteed to answer MX queries (on Max's machine it points
-// at 127.0.0.1 and refuses them), which would turn the email check into a
-// silent no-op. Site lookups use getaddrinfo, which works everywhere.
-const mxResolver = new dns.Resolver({ timeout: 2000, tries: 1 });
-mxResolver.setServers(['1.1.1.1', '8.8.8.8']);
+// Everything goes through public resolvers, never the system default. The
+// system resolver gives no usable "does not exist" answer in either place we
+// run: on Max's machine it is 127.0.0.1 and refuses MX queries, and on Vercel
+// getaddrinfo returns EBUSY (not ENOTFOUND) for a made-up domain, which made
+// the site check silently pass everything (seen live 2026-11-21).
+const publicResolver = new dns.Resolver({ timeout: 2000, tries: 1 });
+publicResolver.setServers(['1.1.1.1', '8.8.8.8']);
+
+/** Resolves if the host has an IPv4 or IPv6 address; rejects with ENOTFOUND/ENODATA if not. */
+async function resolveAddress(host: string): Promise<void> {
+  try {
+    await publicResolver.resolve4(host);
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'ENODATA') throw err;
+    await publicResolver.resolve6(host);
+  }
+}
 
 const nodeResolver: Resolver = {
-  lookup: (host) => dns.lookup(host),
-  resolveMx: (domain) => mxResolver.resolveMx(domain),
+  lookup: (host) => resolveAddress(host),
+  resolveMx: (domain) => publicResolver.resolveMx(domain),
 };
 
 const DNS_TIMEOUT_MS = 3000;

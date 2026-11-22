@@ -25,5 +25,5 @@ On Max's machine the system resolver is 127.0.0.1 and refuses MX queries (ECONNR
 - Production: see the Outcome section in aios state/decisions/log.md (2026-11-21).
 
 ## Open risks
-- If Vercel blocks outbound UDP 53 to public resolvers, the email check fails open (logged as "[intake] DNS check inconclusive"). Check Vercel logs after deploy.
+- FIXED 11-21 after first deploy: on Vercel, getaddrinfo returns EBUSY (not ENOTFOUND) for a made-up domain, so the site check failed open and one fake-site test audit ran (to t@gmail.com, my test-address mistake). Site check now uses the same public resolvers as MX. Watch Vercel logs for "[intake] DNS check inconclusive": frequent hits mean the public resolvers are unreachable and the guard is a no-op.
 - Not built: double opt-in (confirm email before sending the report). Adds friction to a lead form; only worth it if junk keeps getting through.
