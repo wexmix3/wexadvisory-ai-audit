@@ -25,4 +25,8 @@ Clear the known security advisories in ai-audit (audit.wexadvisory.com) without 
 - lib/research/firecrawl.ts catch-all returning '' violates fail-loudly; a broken scrape would not show up anywhere. Not changed here (behavior change, out of scope).
 
 ## Outcome
-(filled after production deploy)
+LIVE 2026-11-22. master 3d1edec (merge), Vercel production deploy ai-audit-25bmljenu Ready.
+- audit.wexadvisory.com / and /audit: 200.
+- 11-18 junk payload: 400 companyUrl (intake guard still works).
+- Real audit 4d49268a (Piece of Cake, utm deploy-check-deps, maxwexley@wexadvisory.com): complete, headline "$51K-$101K/year". Both emails landed in maxwexley@wexadvisory.com: "Your AI Opportunity Snapshot for Piece of Cake Moving is ready" (with PDF) and "New Lead: ... (via deploy-check-deps)".
+- Cost of verification: 2 full audits (~$2 Anthropic) + Firecrawl/Tavily credits.
