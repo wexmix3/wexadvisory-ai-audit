@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import type { SnapshotIntake } from '@/types/audit';
+import { checkIntakeShape } from '@/lib/intake/shape';
+import { checkIntakeDns } from '@/lib/intake/dns-check';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -36,6 +38,15 @@ export async function POST(req: NextRequest) {
 
     if (!intake.companyUrl.startsWith('http')) {
       intake.companyUrl = `https://${intake.companyUrl}`;
+    }
+
+    // Junk guard: stop fake sites and dead email domains before the paid
+    // pipeline runs or a report is emailed. 400 + field so the form can jump
+    // back to the right step.
+    const problem = checkIntakeShape(intake) ?? (await checkIntakeDns(intake));
+    if (problem) {
+      console.warn(`[snapshot] intake rejected (${problem.field}): url=${intake.companyUrl} email_domain=${intake.contactEmail.split('@')[1] ?? ''}`);
+      return NextResponse.json({ error: problem.message, field: problem.field }, { status: 400 });
     }
 
     const db = getSupabase();

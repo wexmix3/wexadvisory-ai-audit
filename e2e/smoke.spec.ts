@@ -51,7 +51,7 @@ test.describe('audit intake form', () => {
 
     await page.getByLabel(/industry/i).selectOption('SaaS / Technology');
     await page
-      .getByPlaceholder(/manual reporting takes hours/i)
+      .getByPlaceholder(/chasing unpaid invoices/i)
       .fill('E2E smoke test run — please ignore.');
     await page.getByPlaceholder('Jane Smith').fill('Playwright Bot');
     await page.getByPlaceholder('jane@company.com').fill('maxwexley@wexadvisory.com');
