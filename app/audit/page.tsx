@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { checkIntakeShape, hostFromUrl, isPlausibleHost } from '@/lib/intake/shape';
 
 // Read directly off window.location instead of next/navigation's useSearchParams —
 // that hook forces this page into a <Suspense> boundary at build time for a value
@@ -64,6 +65,7 @@ export default function AuditPage() {
 
   function validateStep1() {
     if (!form.companyUrl.trim()) return 'Please enter your website URL';
+    if (!isPlausibleHost(hostFromUrl(form.companyUrl))) return 'Please enter your full website address, like yourcompany.com';
     if (!form.companyName.trim()) return 'Please enter your company name';
     return '';
   }
@@ -72,8 +74,8 @@ export default function AuditPage() {
     if (!form.industry) return 'Please select your industry';
     if (!form.biggestChallenge.trim()) return 'Please tell us the part of the job you would never do again';
     if (!form.contactName.trim()) return 'Please enter your name';
-    if (!form.contactEmail.trim() || !form.contactEmail.includes('@')) return 'Please enter a valid email';
-    return '';
+    const problem = checkIntakeShape(form);
+    return problem ? problem.message : '';
   }
 
   function handleStep1() {
@@ -97,11 +99,12 @@ export default function AuditPage() {
         body: JSON.stringify({ ...form, utmSource: tracking.utmSource, prospectId: tracking.prospectId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to start audit');
+      if (!res.ok) throw Object.assign(new Error(data.error || 'Failed to start audit'), { field: data.field });
       router.push(`/results/${data.auditId}`);
     } catch (e) {
       setLoading(false);
-      setStep(2);
+      const field = (e as { field?: string }).field;
+      setStep(field === 'companyUrl' || field === 'companyName' ? 1 : 2);
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     }
   }
@@ -185,8 +188,9 @@ export default function AuditPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-slate-300 text-sm font-medium block mb-1.5">Industry</label>
+                  <label htmlFor="industry" className="text-slate-300 text-sm font-medium block mb-1.5">Industry</label>
                   <select
+                    id="industry"
                     value={form.industry}
                     onChange={(e) => update('industry', e.target.value)}
                     className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#C8A84B] transition-colors"
